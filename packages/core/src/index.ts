@@ -18,6 +18,30 @@ export type {
   ReceiptLocator,
 } from "./domain/reputation";
 
+export type {
+  Decision,
+  FeedbackEvaluation,
+  FeedbackRejectionReason,
+  OfferEvaluationResult,
+  OfferRiskFlag,
+  PolicyConfig,
+  PolicyDecision,
+  ReputationAssessment,
+  ReputationEvaluationResult,
+  ReputationModel,
+  ReputationRiskFlag,
+} from "./domain/evaluation";
+
+export type {
+  InvalidPaymentEvidence,
+  EvidenceClaim,
+  PaymentProofVerification,
+  PaymentProofVerifier,
+  PaymentVerificationFailureCode,
+  ReceiptUsageReader,
+  VerifiedPaymentEvidence,
+} from "./domain/evidence";
+
 export {
   canonicalizeOffer,
   OfferCanonicalizationError,
@@ -40,6 +64,70 @@ export {
 } from "./evidence/receipt-key";
 
 export { normalizeFeedbackRecord } from "./reputation/normalize-feedback";
+
+export {
+  averageScoreBps,
+  confidenceFromDistinctReviewers,
+  MAX_SCORE_BPS,
+  toQualityScoreBps,
+} from "./reputation/fixed-point";
+
+export { assessB1RawReputation } from "./reputation/b1";
+export type { B1AssessmentInput } from "./reputation/b1";
+
+export { assessB3Reputation } from "./reputation/b3";
+export type { B3AssessmentInput } from "./reputation/b3";
+
+export {
+  createFeedbackKey,
+  filterQualityFeedback,
+} from "./reputation/quality-feedback";
+export type {
+  QualityFeedbackCandidate,
+  QualityFeedbackFilterResult,
+  QualityFeedbackScope,
+} from "./reputation/quality-feedback";
+
+export {
+  DEFAULT_POLICY_CONFIG,
+  evaluatePolicy,
+  hashPolicy,
+} from "./policy/evaluate-policy";
+export type { EvaluatePolicyInput } from "./policy/evaluate-policy";
+
+export { evaluateReputation } from "./evaluation/evaluate-reputation";
+export type {
+  B1ReputationEvaluationInput,
+  B3ReputationEvaluationInput,
+  ReputationEvaluationInput,
+} from "./evaluation/evaluate-reputation";
+
+export { evaluateOffer } from "./evaluation/evaluate-offer";
+export type {
+  Clock,
+  EvaluateOfferInput,
+  EvaluationPorts,
+  FeedbackReader,
+  IdentityReader,
+} from "./evaluation/evaluate-offer";
+
+export {
+  FixedClock,
+  FixtureFeedbackReader,
+  FixtureIdentityReader,
+  FixturePaymentProofVerifier,
+  FixtureReceiptUsageReader,
+} from "./fixtures/adapters";
+export type { PaymentProofFixture } from "./fixtures/adapters";
+
+export {
+  createDeterministicScenario,
+  DETERMINISTIC_SCENARIO_IDS,
+} from "./fixtures/scenarios";
+export type {
+  DeterministicScenarioContext,
+  DeterministicScenarioId,
+} from "./fixtures/scenarios";
 
 export {
   agentReferenceInputSchema,
