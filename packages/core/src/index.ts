@@ -67,6 +67,8 @@ export {
   HttpUrlCanonicalizationError,
 } from "./canonicalization/http-url";
 
+export { hashRequestBody } from "./canonicalization/request-body";
+
 export type { HttpUrlCanonicalizationErrorCode } from "./canonicalization/http-url";
 
 export { deriveIdentityEpoch } from "./identity/epoch";

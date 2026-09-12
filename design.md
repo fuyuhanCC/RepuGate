@@ -297,7 +297,7 @@ RepuGate resolves the service using:
 
 The service-provided `agentId` is not trusted without checking its registered endpoint and wallet.
 
-The controlled Demo Provider carries `agentRegistry` and `agentId` in a project-defined `repugate-agent` entry under `PaymentRequired.extensions`, explicitly labelled experimental. These values are resolution hints rather than trust anchors. RepuGate verifies the relationship among registry, endpoint, owner, `agentWallet`, and `payTo` through onchain reads or frozen fixtures, and never presents this extension as an official x402/ERC-8004 standard.
+The controlled Demo Provider carries `agentRegistry`, `agentId`, and `endpointHash` in a project-defined `repugate-agent` entry under `PaymentRequired.extensions`, explicitly labelled experimental. These values are resolution hints rather than trust anchors. `endpointHash` lets the client bind the offer before identity resolution; the Evaluation API must still derive it from the registered endpoint and reject a mismatch. RepuGate verifies the relationship among registry, endpoint, owner, `agentWallet`, and `payTo` through onchain reads or frozen fixtures, and never presents this extension as an official x402/ERC-8004 standard.
 
 ```json
 {
@@ -305,7 +305,8 @@ The controlled Demo Provider carries `agentRegistry` and `agentId` in a project-
     "repugate-agent": {
       "info": {
         "agentRegistry": "0x...",
-        "agentId": "12"
+        "agentId": "12",
+        "endpointHash": "0x..."
       },
       "schema": { "type": "object" }
     }

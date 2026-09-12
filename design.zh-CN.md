@@ -297,7 +297,7 @@ RepuGate 使用以下信息解析服务身份：
 
 系统不能直接信任服务自己提供的 `agentId`，必须检查注册 endpoint 和钱包是否对应。
 
-受控 Demo Provider 在 `PaymentRequired.extensions` 中使用项目自定义且明确标为实验性的 `repugate-agent` 扩展，传递 `agentRegistry` 和 `agentId`。这些字段只是解析线索，不是信任依据；RepuGate 必须通过链上或冻结 fixture 验证 registry、endpoint、owner、`agentWallet` 和 `payTo` 的关系，不能把该扩展描述成官方 x402/ERC-8004 标准。
+受控 Demo Provider 在 `PaymentRequired.extensions` 中使用项目自定义且明确标为实验性的 `repugate-agent` 扩展，传递 `agentRegistry`、`agentId` 和 `endpointHash`。这些字段只是解析线索，不是信任依据；`endpointHash` 使客户端可以在解析身份前绑定报价，但 Evaluation API 仍必须从注册 endpoint 重新推导并拒绝不匹配的值。RepuGate 必须通过链上或冻结 fixture 验证 registry、endpoint、owner、`agentWallet` 和 `payTo` 的关系，不能把该扩展描述成官方 x402/ERC-8004 标准。
 
 ```json
 {
@@ -305,7 +305,8 @@ RepuGate 使用以下信息解析服务身份：
     "repugate-agent": {
       "info": {
         "agentRegistry": "0x...",
-        "agentId": "12"
+        "agentId": "12",
+        "endpointHash": "0x..."
       },
       "schema": { "type": "object" }
     }
