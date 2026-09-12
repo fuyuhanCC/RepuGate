@@ -42,6 +42,19 @@ export type {
   VerifiedPaymentEvidence,
 } from "./domain/evidence";
 
+export type {
+  AuthorizedPaymentIntent,
+  EvaluationGrant,
+  EvaluationGrantStatus,
+  GrantConsumptionBinding,
+} from "./domain/grant";
+
+export type {
+  PaymentAttempt,
+  PaymentEvent,
+  PaymentState,
+} from "./domain/payment";
+
 export {
   canonicalizeOffer,
   OfferCanonicalizationError,
@@ -124,6 +137,26 @@ export {
   createDeterministicScenario,
   DETERMINISTIC_SCENARIO_IDS,
 } from "./fixtures/scenarios";
+
+export {
+  assertGrantBindingMatches,
+  assertGrantConsumable,
+  GrantError,
+  issueEvaluationGrant,
+} from "./grants/grant";
+export type {
+  GrantErrorCode,
+  IssueEvaluationGrantInput,
+} from "./grants/grant";
+
+export {
+  createPaymentAttempt,
+  PaymentTransitionError,
+  reducePaymentEvent,
+} from "./payments/reduce-payment-event";
+export type {
+  PaymentTransitionErrorCode,
+} from "./payments/reduce-payment-event";
 export type {
   DeterministicScenarioContext,
   DeterministicScenarioId,
