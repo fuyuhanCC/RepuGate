@@ -9,6 +9,7 @@ const BUYER = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 interface ServiceDto {
   id: string;
   offer: Record<string, unknown>;
+  expectedOffer: Record<string, unknown>;
   expectedOfferHash: string;
 }
 
@@ -83,6 +84,16 @@ async function getService(
 
   return service;
 }
+
+describe("service catalog", () => {
+  it("exposes the trusted offer separately from a substituted provider offer", async () => {
+    const instance = createApp();
+    const service = await getService(instance, "offer-substitution");
+
+    expect(service.offer.amount).toBe("20000");
+    expect(service.expectedOffer.amount).toBe("10000");
+  });
+});
 
 async function evaluate(
   instance: FastifyInstance,

@@ -27,6 +27,7 @@ export interface DeterministicScenarioContext {
   id: DeterministicScenarioId;
   title: string;
   description: string;
+  expectedOffer: CanonicalOfferInput;
   input: EvaluateOfferInput;
   ports: EvaluationPorts;
 }
@@ -38,6 +39,7 @@ interface ScenarioData {
   offer: CanonicalOfferInput;
   feedback: FeedbackRecord[];
   paymentFixtures: PaymentProofFixture[];
+  expectedOffer?: CanonicalOfferInput;
   expectedOfferHash?: Bytes32;
 }
 
@@ -243,6 +245,7 @@ function offerSubstitutionData(): ScenarioData {
     title: "Offer substitution attack",
     description: "The amount changes after the buyer evaluates the exact offer.",
     offer: { ...data.offer, amount: "20000" },
+    expectedOffer: data.offer,
     expectedOfferHash,
   };
 }
@@ -277,6 +280,7 @@ export function createDeterministicScenario(
     id,
     title: data.title,
     description: data.description,
+    expectedOffer: data.expectedOffer ?? data.offer,
     input: {
       offer: data.offer,
       model,

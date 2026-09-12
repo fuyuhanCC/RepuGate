@@ -135,6 +135,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
           title: scenario.title,
           description: scenario.description,
           offer: scenario.input.offer,
+          expectedOffer: scenario.expectedOffer,
           expectedOfferHash:
             scenario.input.expectedOfferHash ??
             canonicalizeOffer(scenario.input.offer).offerHash,
