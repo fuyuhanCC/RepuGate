@@ -81,7 +81,7 @@ const identitySnapshotDtoSchema = z
 
 const offerEvaluationDtoSchema = z
   .object({
-    model: z.enum(["B1_RAW", "B3_REPUGATE"]),
+    model: z.enum(["B1_RAW", "B2_GROUNDED", "B3_REPUGATE"]),
     rawScoreBps: z.number().int().nullable(),
     verifiedScoreBps: z.number().int().nullable(),
     confidenceBps: z.number().int(),
@@ -167,6 +167,7 @@ export const serviceCatalogItemSchema = z
       "honest-service",
       "ungrounded-feedback",
       "receipt-replay",
+      "reviewer-concentration",
       "offer-substitution",
     ]),
     title: z.string(),

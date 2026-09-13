@@ -27,6 +27,7 @@ import {
   DemoProviderFetch,
   DemoWallet,
 } from "./demo/demo-runtime";
+import { AttackLab } from "./experiments/AttackLab";
 
 const SCENARIO_META: Record<
   ServiceCatalogItem["id"],
@@ -47,8 +48,13 @@ const SCENARIO_META: Record<
     label: "Receipt replay",
     category: "replay",
   },
-  "offer-substitution": {
+  "reviewer-concentration": {
     number: "04",
+    label: "Reviewer concentration",
+    category: "confidence",
+  },
+  "offer-substitution": {
+    number: "05",
     label: "Offer substitution",
     category: "binding",
   },
@@ -58,7 +64,7 @@ const FLOW: Array<{ stage: TrustedFetchStage; title: string; caption: string }> 
   { stage: "INITIAL_REQUEST", title: "Discover", caption: "Request provider" },
   { stage: "PAYMENT_REQUIRED", title: "Challenge", caption: "Parse HTTP 402" },
   { stage: "OFFER_SELECTED", title: "Bind", caption: "Hash exact offer" },
-  { stage: "EVALUATED", title: "Evaluate", caption: "B1 / B3 policy" },
+  { stage: "EVALUATED", title: "Evaluate", caption: "B1 / B2 / B3 policy" },
   { stage: "GRANT_CONSUMED", title: "Authorize", caption: "Consume Grant" },
   { stage: "WALLET_AUTHORIZED", title: "Sign", caption: "Narrow wallet port" },
   { stage: "PAYMENT_SUBMITTED", title: "Submit", caption: "x402 payload" },
@@ -96,6 +102,17 @@ function shortHex(value: string | undefined): string {
 function percent(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   return `${(value / 100).toFixed(1)}%`;
+}
+
+function modelLabel(model: ReputationModel): string {
+  switch (model) {
+    case "B1_RAW":
+      return "B1";
+    case "B2_GROUNDED":
+      return "B2";
+    case "B3_REPUGATE":
+      return "B3";
+  }
 }
 
 function humanize(value: string): string {
@@ -274,7 +291,7 @@ export function App() {
         <nav className="nav-links" aria-label="Primary navigation">
           <a className="active" href="#console">Console</a>
           <a href="#evidence">Evidence</a>
-          <a href="#runs">Runs</a>
+          <a href="#experiments">Experiments</a>
         </nav>
         <div className={`api-status ${apiOnline === true ? "online" : "offline"}`}>
           <span className="status-dot" />
@@ -292,7 +309,7 @@ export function App() {
           </p>
           <div className="hero-protocol">
             <span>ERC-8004</span><i />
-            <span>B1 / B3</span><i />
+            <span>B1 / B2 / B3</span><i />
             <span>ALLOW Grant</span><i />
             <span>x402</span>
           </div>
@@ -337,6 +354,11 @@ export function App() {
                   onClick={() => setModel("B1_RAW")}
                   type="button"
                 >B1 · Raw</button>
+                <button
+                  className={model === "B2_GROUNDED" ? "active" : ""}
+                  onClick={() => setModel("B2_GROUNDED")}
+                  type="button"
+                >B2 · Grounded</button>
                 <button
                   className={model === "B3_REPUGATE" ? "active" : ""}
                   onClick={() => setModel("B3_REPUGATE")}
@@ -488,13 +510,15 @@ export function App() {
           </article>
         </section>
 
+        <AttackLab />
+
         <section className="runs-section" id="runs">
           <div className="section-heading compact">
             <div>
-              <span className="section-index">05 / COMPARISON LOG</span>
+              <span className="section-index">06 / COMPARISON LOG</span>
               <h2>Recent deterministic runs</h2>
             </div>
-            <p>Switch B1 and B3 on the same attack to expose the baseline gap.</p>
+            <p>Compare B1, B2, and B3 on the same attack to isolate each defense.</p>
           </div>
           <div className="runs-table-wrap">
             <table className="runs-table">
@@ -510,7 +534,7 @@ export function App() {
                 ) : history.map((item) => (
                   <tr key={item.id}>
                     <td>{item.scenario}</td>
-                    <td><span className="model-tag">{item.model === "B1_RAW" ? "B1" : "B3"}</span></td>
+                    <td><span className="model-tag">{modelLabel(item.model)}</span></td>
                     <td><span className={`table-decision ${item.decision.toLowerCase()}`}>{item.decision}</span></td>
                     <td>{percent(item.verifiedScoreBps)}</td>
                     <td>{percent(item.confidenceBps)}</td>

@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import type { ReputationAssessment } from "../domain/evaluation";
+import type {
+  ReputationAssessment,
+  ReputationModel,
+} from "../domain/evaluation";
 import { evaluatePolicy, hashPolicy } from "./evaluate-policy";
 
 function assessment(
   scoreBps: number | null,
   confidenceBps: number,
+  model: ReputationModel = "B3_REPUGATE",
 ): ReputationAssessment {
   return {
-    model: "B3_REPUGATE",
+    model,
     scoreBps,
     confidenceBps,
     distinctReviewerCount: 3,
@@ -30,6 +34,25 @@ describe("policy evaluation", () => {
 
     expect(result.decision).toBe("REVIEW");
     expect(result.reasons).toEqual(["CONFIDENCE_BELOW_ALLOW_THRESHOLD"]);
+  });
+
+  it("uses confidence as a hard gate only in the full B3 model", () => {
+    expect(
+      evaluatePolicy({
+        assessment: assessment(10_000, 2_000, "B2_GROUNDED"),
+      }),
+    ).toMatchObject({
+      decision: "ALLOW",
+      reasons: ["SCORE_MEETS_ALLOW_POLICY"],
+    });
+    expect(
+      evaluatePolicy({
+        assessment: assessment(10_000, 2_000, "B3_REPUGATE"),
+      }),
+    ).toMatchObject({
+      decision: "REVIEW",
+      reasons: ["CONFIDENCE_BELOW_ALLOW_THRESHOLD"],
+    });
   });
 
   it("blocks a low score or an absent score", () => {

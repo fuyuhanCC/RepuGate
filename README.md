@@ -24,12 +24,25 @@ Recommended presentation checks:
 
 1. Run `Honest service` with `B3 · RepuGate`: the decision is `ALLOW`, the wallet
    signs once, and the payment ends in `SETTLEMENT_PENDING` for reconciliation.
-2. Run `Ungrounded ratings` with B1, then B3: B1 pays, while B3 rejects feedback
+2. Run `Ungrounded ratings` with B1, then B2: B1 pays, while B2 rejects feedback
    without verified payment evidence and never calls the wallet.
-3. Run `Receipt replay` with B3: one reused receipt cannot create five trusted
+3. Run `Reviewer concentration` with B2, then B3: B2 pays because every receipt
+   is valid, while B3 caps repeated reviewer influence and returns `BLOCK`.
+4. Run `Receipt replay` with B2 or B3: one reused receipt cannot create five trusted
    reviews.
-4. Run `Offer substitution` with B3: the offer hash mismatch stops the flow
+5. Run `Offer substitution` with B3: the offer hash mismatch stops the flow
    before Grant consumption and signing.
+
+## Regenerate the frozen experiment results
+
+```bash
+./pnpmw experiment
+```
+
+The command runs B1, B2, and B3 against the same five deterministic scenarios
+through the production `evaluateOffer()` path. It writes a JSON report and CSV
+table to `data/results/` and refreshes the generated report bundled by the Web
+Attack Lab. No Web server, wallet, testnet, or database is required.
 
 ## Verification
 

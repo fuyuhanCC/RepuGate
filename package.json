@@ -8,6 +8,7 @@
     "dev": "pnpm --parallel --filter @repugate/api --filter @repugate/web dev",
     "dev:api": "pnpm --filter @repugate/api dev",
     "dev:web": "pnpm --filter @repugate/web dev",
+    "experiment": "pnpm --filter @repugate/experiments run generate",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test"
   },

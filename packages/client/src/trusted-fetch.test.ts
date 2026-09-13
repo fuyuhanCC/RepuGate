@@ -320,7 +320,7 @@ function settledResponse(required: PaymentRequired): Response {
 function options(
   required: PaymentRequired,
   scenarioId: DeterministicScenarioId,
-  model: "B1_RAW" | "B3_REPUGATE" = "B3_REPUGATE",
+  model: "B1_RAW" | "B2_GROUNDED" | "B3_REPUGATE" = "B3_REPUGATE",
 ): TrustedFetchOptions {
   const selected = required.accepts[0]!;
 

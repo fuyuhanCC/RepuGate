@@ -206,7 +206,7 @@ export async function evaluateOffer(
         })
       : await evaluateReputation({
           ...reputationInput,
-          model: "B3_REPUGATE",
+          model: input.model,
           paymentProofVerifier: ports.paymentProofVerifier,
           receiptUsageReader: ports.receiptUsageReader,
         });

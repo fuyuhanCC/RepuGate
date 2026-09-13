@@ -20,6 +20,7 @@ import {
 export type DeterministicScenarioId =
   | "honest-service"
   | "offer-substitution"
+  | "reviewer-concentration"
   | "receipt-replay"
   | "ungrounded-feedback";
 
@@ -236,6 +237,48 @@ function receiptReplayData(): ScenarioData {
   };
 }
 
+function reviewerConcentrationData(): ScenarioData {
+  const identity = buildIdentity();
+  const feedback: FeedbackRecord[] = [];
+  const paymentFixtures: PaymentProofFixture[] = [];
+  const ratings = [
+    ...Array.from({ length: 5 }, () => ({
+      reviewer: REVIEWERS[0],
+      score: 100,
+    })),
+    { reviewer: REVIEWERS[1], score: 0 },
+    { reviewer: REVIEWERS[2], score: 0 },
+  ];
+
+  for (const [offset, rating] of ratings.entries()) {
+    const index = offset + 1;
+    const proof = buildProof(identity, rating.reviewer, index);
+    feedback.push(
+      buildFeedback({
+        identity,
+        reviewer: rating.reviewer,
+        index,
+        score: rating.score,
+        proof,
+      }),
+    );
+    paymentFixtures.push({
+      proof,
+      verification: buildVerification(identity, proof),
+    });
+  }
+
+  return {
+    title: "Reviewer concentration",
+    description:
+      "Five of seven unique paid ratings come from one reviewer, so record-level aggregation overstates reputation.",
+    identity,
+    offer: buildOffer(identity),
+    feedback,
+    paymentFixtures,
+  };
+}
+
 function offerSubstitutionData(): ScenarioData {
   const data = honestData();
   const expectedOfferHash = canonicalizeOffer(data.offer).offerHash;
@@ -256,6 +299,8 @@ function buildScenarioData(id: DeterministicScenarioId): ScenarioData {
       return honestData();
     case "offer-substitution":
       return offerSubstitutionData();
+    case "reviewer-concentration":
+      return reviewerConcentrationData();
     case "receipt-replay":
       return receiptReplayData();
     case "ungrounded-feedback":
@@ -267,6 +312,7 @@ export const DETERMINISTIC_SCENARIO_IDS = [
   "honest-service",
   "ungrounded-feedback",
   "receipt-replay",
+  "reviewer-concentration",
   "offer-substitution",
 ] as const satisfies readonly DeterministicScenarioId[];
 

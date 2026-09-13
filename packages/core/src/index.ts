@@ -90,6 +90,9 @@ export {
 export { assessB1RawReputation } from "./reputation/b1";
 export type { B1AssessmentInput } from "./reputation/b1";
 
+export { assessB2GroundedReputation } from "./reputation/b2";
+export type { B2AssessmentInput } from "./reputation/b2";
+
 export { assessB3Reputation } from "./reputation/b3";
 export type { B3AssessmentInput } from "./reputation/b3";
 
@@ -113,6 +116,7 @@ export type { EvaluatePolicyInput } from "./policy/evaluate-policy";
 export { evaluateReputation } from "./evaluation/evaluate-reputation";
 export type {
   B1ReputationEvaluationInput,
+  B2ReputationEvaluationInput,
   B3ReputationEvaluationInput,
   ReputationEvaluationInput,
 } from "./evaluation/evaluate-reputation";

@@ -188,7 +188,7 @@ Adapter 将外部数据转换成 Core 可以处理的标准化输入：
 
 3. **Attack Lab（攻击实验室）**
 
-   加载由命令行实验程序生成的可复现攻击结果，并使用图表和表格重点比较 B1 和 B3。Presentation 模式使用固定的实验数据，避免演示结果依赖测试网状态。网页不直接启动长时间实验任务。
+   加载由命令行实验程序生成的可复现攻击结果，并使用图表和表格比较 B1、B2 和 B3。Presentation 模式使用固定的实验数据，避免演示结果依赖测试网状态。网页不直接启动长时间实验任务。
 
 Trust Evaluation 页面可以包含付款凭证和审计详情抽屉。独立管理后台、用户管理系统和生产级分析平台不在项目范围内。
 
@@ -248,7 +248,6 @@ POST /api/grants/:grantId/consume
 POST /api/payments/:paymentId/events
 GET  /api/payments/:paymentId
 POST /api/payments/:paymentId/reconcile
-GET  /api/experiment-results/latest
 ```
 
 前端提供两种模式：
@@ -256,7 +255,7 @@ GET  /api/experiment-results/latest
 - **确定性 Demo 模式**：使用保存的 fixture/mock 数据，保证 Presentation 现场始终可运行。
 - **Live 模式**：可选连接 MetaMask，执行 Base Sepolia x402 流程。
 
-实验由独立命令行程序运行并写入隔离结果目录或临时数据库。Presentation API 只读取冻结后的实验结果，不能与现场演示共用可变的 Grant、付款和防重放状态。
+实验由独立命令行程序运行，并把不可变的 JSON/CSV 结果写入 `data/results/`。前端展示平台打包生成后的冻结 JSON 并只读展示；实验不会与 API 共用可变的 Grant、付款或防重放状态。
 
 ## 7. 请求与决策流程
 
@@ -389,19 +388,19 @@ RepuGate 对每条评价尽可能检查以下条件：
 
 ### 7.6 计算声誉
 
-评分模块输出类似以下结果：
+当前评分模块输出类似以下结果：
 
 ```json
 {
-  "score": 0.78,
-  "confidence": 0.71,
-  "verifiedFeedbackCount": 18,
-  "rejectedFeedbackCount": 7,
-  "sybilRisk": 0.22
+  "rawScoreBps": 7800,
+  "verifiedScoreBps": 7600,
+  "confidenceBps": 6000,
+  "distinctReviewerCount": 3,
+  "riskFlags": ["LOW_DISTINCT_REVIEWER_COUNT"]
 }
 ```
 
-评估结果同时包含依据状态：
+未来的链上 Live Adapter 可以进一步加入数据源可用性状态：
 
 ```text
 measured           已评估足够的有效证据
@@ -496,27 +495,26 @@ Agent 不评估服务声誉，直接授权所有格式有效的 x402 付款请�
 
 ### B1：Raw ERC-8004 Reputation
 
-直接聚合受支持 `quality` 维度中的所有未撤销评价，不要求评价包含真实交互或付款证明。
+直接聚合受支持 `quality` 维度中的所有未撤销评价，不要求评价包含真实交互或付款证明。系统会展示评价者多样性作为诊断信息，但不使用它阻止付款。
 
 ### B2：Payment-Grounded Reputation
 
-只有具有有效、唯一且与目标服务绑定的付款凭证的评价才能影响分数。
+只有具有有效、唯一且与目标服务绑定的付款凭证的评价才能影响分数。每条通过验证的评价具有相同权重；系统会展示评价者多样性用于比较，但不使用它阻止付款。
 
 ### B3：Full RepuGate
 
-B3 在 B2 基础上加入置信度和 Sybil 风险权重。候选因素包括：
+B3 使用与 B2 相同的付款验证证据，然后先对每个评价者的多条评价取平均，限制单一评价者的重复影响。它根据不同有效付款评价者数量计算置信度，并要求分数和置信度同时达到 `ALLOW` 门槛。当前原型已经实现：
 
-- 有效交互数量
-- 评价者多样性
-- 单一评价者最大影响权重
-- 时间衰减
-- 短时间集中评价惩罚
-- 共同资金来源惩罚
-- 服务身份存在时间
+- 继承自 B2 的有效付款筛选
+- 评价者多样性统计
+- 通过按评价者聚合限制单个评价者影响
+- 最少不同评价者数量对应的置信度门控
+
+时间衰减、短时间集中评价检测、共同资金来源分析和服务身份年龄明确属于未来工作，当前项目不声称已经实现。
 
 项目不能声称完全抵御 Sybil 攻击。恶意服务可以创建多个钱包，再让这些钱包向自己进行真实付款。付款凭证可以提供更强的交互证据，防止零成本评价和凭证重用，但不能证明评价者彼此独立或评价内容诚实。
 
-付款金额不能线性增加评价权重，因为 Provider 可以通过自付款收回大部分资金，从而低成本购买声誉。系统把不同有效付款人数量、单一评价者权重上限、交易时间分布和资金集中度作为风险信号，而不是独立用户的证明。
+付款金额不能线性增加评价权重，因为 Provider 可以通过自付款收回大部分资金，从而低成本购买声誉。当前原型把不同有效付款人数量和单一评价者权重上限作为风险信号，而不是独立用户的证明；交易时间分布和资金集中度仍属于未来扩展。
 
 ## 9. 威胁模型
 
@@ -685,13 +683,14 @@ Presentation 原型必须实现：
 
 ### 12.4 公平比较方式
 
-B1 和 B3 必须在相同或接近的诚实服务通过率下进行比较，否则系统可能仅仅因为阻止了大量请求而显得安全。
+B1、B2 和 B3 必须在相同或接近的诚实服务通过率下进行比较，否则系统可能仅仅因为阻止了大量请求而显得安全。
 
 核心比较问题是：
 
 ```text
-在诚实服务通过率相同的情况下，
-B3 的恶意服务付款率是否低于 B1？
+在诚实服务通过率相同的情况下：
+1. B2 相比 B1 能否减少无付款和凭证重放导致的付款？
+2. B3 相比 B2 能否减少评价者集中情况下的付款？
 ```
 
 实验应当使用固定随机种子、多次重复运行、保存配置并报告置信区间。最终 evaluation set 运行前冻结评分参数，并尽量分开开发场景和评估场景；同时报告失败场景和参数敏感性，避免只针对 B3 已知攻击进行调参。原始结果文件必须保留，以便重新生成图表。
@@ -725,12 +724,14 @@ Presentation 原型优先实现一条可稳定演示的完整纵向流程：
 - 受门控的 MetaMask 授权
 - payment identifier 和结算状态展示
 - B1 原始声誉
-- B3 完整 RepuGate 策略
+- B2 付款依据过滤后的声誉
+- 带 reviewer 级聚合的完整 B3 RepuGate 策略
 - `ALLOW` 和 `BLOCK` 决策
 - 无付款刷分攻击
 - 付款凭证重放攻击
+- 评价者集中攻击
 - 报价替换攻击
-- 一张基线对比图
+- 由冻结实验数据生成的 B1/B2/B3 对比卡片和攻击矩阵
 - 一次确定性模拟付款流程；准备完成时再增加 Base Sepolia Live 流程
 - 一个浏览器前端展示页面
 - Service Explorer、Trust Evaluation 和 Attack Lab 三个视图
@@ -770,7 +771,7 @@ RepuGate/
 ├── packages/
 │   ├── core/                      # 纯评分、Schema、规范化、Grant、Epoch、状态逻辑
 │   └── client/                    # trustedFetch + GuardedPaymentClient
-├── experiments/                  # B1/B3、攻击场景和命令行运行程序
+├── experiments/                  # B1/B2/B3、攻击场景和命令行运行程序
 ├── contracts/
 │   └── MockEIP3009USDC.sol        # 可选，仅用于本地协议测试
 ├── tests/
@@ -852,8 +853,8 @@ RepuGate/
 - Honest 和 Malicious 服务使用不同的 ERC-8004 身份、endpoint 和收款配置
 - 使用 React/Vite 构建同时支持确定性 Demo 和可选 Live 模式的前端展示平台
 - 使用 TypeScript、Node.js、viem、SQLite、Vitest 和 pnpm workspace
-- Pre 核心实验固定比较 B1 和 B3，并演示无付款刷分、凭证重放和报价替换
-- 只声称 Payment-Grounded 和 Sybil-Aware
+- Pre 核心实验固定比较 B1、B2 和 B3，并演示无付款刷分、凭证重放、评价者集中和报价替换
+- 只声称 Payment-Grounded 和 Reviewer-Concentration-Aware
 - 不声称完全抵御 Sybil 攻击
 - 不声称付款或签名 delivery receipt 能证明 AI 输出的语义质量
 - 安全门控只覆盖本应用，不能全局控制 MetaMask

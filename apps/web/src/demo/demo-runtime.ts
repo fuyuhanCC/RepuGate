@@ -41,7 +41,8 @@ function transactionHashFor(serviceId: ServiceCatalogItem["id"]): `0x${string}` 
     "honest-service": "11",
     "ungrounded-feedback": "22",
     "receipt-replay": "33",
-    "offer-substitution": "44",
+    "reviewer-concentration": "44",
+    "offer-substitution": "55",
   }[serviceId];
 
   return `0x${byte.repeat(32)}`;

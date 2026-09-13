@@ -1,5 +1,4 @@
 import type {
-  FeedbackEvaluation,
   ReputationAssessment,
   ReputationRiskFlag,
 } from "../domain/evaluation";
@@ -16,7 +15,7 @@ import {
 import { verifyGroundedFeedback } from "./grounded-feedback";
 import type { QualityFeedbackScope } from "./quality-feedback";
 
-export interface B3AssessmentInput {
+export interface B2AssessmentInput {
   feedback: readonly FeedbackRecord[];
   identity: IdentitySnapshot;
   scope: QualityFeedbackScope;
@@ -25,31 +24,14 @@ export interface B3AssessmentInput {
   reviewersForFullConfidence?: number;
 }
 
-function distinctReviewerScores(
-  accepted: readonly FeedbackEvaluation[],
-): Map<string, number[]> {
-  const scoresByReviewer = new Map<string, number[]>();
-
-  for (const item of accepted) {
-    const reviewer = item.clientAddress.toLowerCase();
-    const scores = scoresByReviewer.get(reviewer) ?? [];
-    scores.push(item.scoreBps!);
-    scoresByReviewer.set(reviewer, scores);
-  }
-
-  return scoresByReviewer;
-}
-
-export async function assessB3Reputation(
-  input: B3AssessmentInput,
+export async function assessB2GroundedReputation(
+  input: B2AssessmentInput,
 ): Promise<ReputationAssessment> {
   const reviewersForFullConfidence = input.reviewersForFullConfidence ?? 5;
   const grounded = await verifyGroundedFeedback(input);
-  const scoresByReviewer = distinctReviewerScores(grounded.acceptedFeedback);
-  const reviewerScores = [...scoresByReviewer.values()].map(
-    (scores) => averageScoreBps(scores)!,
-  );
-  const distinctReviewerCount = scoresByReviewer.size;
+  const distinctReviewerCount = new Set(
+    grounded.acceptedFeedback.map((item) => item.clientAddress.toLowerCase()),
+  ).size;
   const riskFlags: ReputationRiskFlag[] = [];
 
   if (grounded.acceptedFeedback.length === 0) {
@@ -69,8 +51,10 @@ export async function assessB3Reputation(
   }
 
   return {
-    model: "B3_REPUGATE",
-    scoreBps: averageScoreBps(reviewerScores),
+    model: "B2_GROUNDED",
+    scoreBps: averageScoreBps(
+      grounded.acceptedFeedback.map((item) => item.scoreBps!),
+    ),
     confidenceBps: confidenceFromDistinctReviewers(
       distinctReviewerCount,
       reviewersForFullConfidence,

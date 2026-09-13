@@ -1,0 +1,332 @@
+{
+  "schemaVersion": 1,
+  "runId": "presentation-067685e2bdad",
+  "configHash": "sha256:067685e2bdad23454164a31f1039ea6f9f95b54a42c90cafa730e8f00929532a",
+  "config": {
+    "schemaVersion": 1,
+    "dataset": "presentation-fixtures-v1",
+    "models": [
+      "B1_RAW",
+      "B2_GROUNDED",
+      "B3_REPUGATE"
+    ],
+    "scenarios": [
+      "honest-service",
+      "ungrounded-feedback",
+      "receipt-replay",
+      "reviewer-concentration",
+      "offer-substitution"
+    ],
+    "policy": {
+      "version": "repugate-policy-v1",
+      "allowScoreBps": 7000,
+      "allowConfidenceBps": 6000,
+      "reviewScoreBps": 5000
+    }
+  },
+  "results": [
+    {
+      "scenarioId": "honest-service",
+      "scenarioTitle": "Honest paid service",
+      "scenarioKind": "CONTROL",
+      "model": "B1_RAW",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": 9000,
+      "verifiedScoreBps": null,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 3,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "honest-service",
+      "scenarioTitle": "Honest paid service",
+      "scenarioKind": "CONTROL",
+      "model": "B2_GROUNDED",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": 9000,
+      "verifiedScoreBps": 9000,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 3,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "honest-service",
+      "scenarioTitle": "Honest paid service",
+      "scenarioKind": "CONTROL",
+      "model": "B3_REPUGATE",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": 9000,
+      "verifiedScoreBps": 9000,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 3,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "ungrounded-feedback",
+      "scenarioTitle": "Ungrounded feedback attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B1_RAW",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": 10000,
+      "verifiedScoreBps": null,
+      "confidenceBps": 10000,
+      "distinctReviewerCount": 5,
+      "acceptedFeedbackCount": 5,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "ungrounded-feedback",
+      "scenarioTitle": "Ungrounded feedback attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B2_GROUNDED",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 10000,
+      "verifiedScoreBps": null,
+      "confidenceBps": 0,
+      "distinctReviewerCount": 0,
+      "acceptedFeedbackCount": 0,
+      "rejectedFeedbackCount": 5,
+      "riskFlags": [
+        "NO_VERIFIED_FEEDBACK",
+        "LOW_DISTINCT_REVIEWER_COUNT",
+        "UNGROUNDED_FEEDBACK_PRESENT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "ungrounded-feedback",
+      "scenarioTitle": "Ungrounded feedback attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B3_REPUGATE",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 10000,
+      "verifiedScoreBps": null,
+      "confidenceBps": 0,
+      "distinctReviewerCount": 0,
+      "acceptedFeedbackCount": 0,
+      "rejectedFeedbackCount": 5,
+      "riskFlags": [
+        "NO_VERIFIED_FEEDBACK",
+        "LOW_DISTINCT_REVIEWER_COUNT",
+        "UNGROUNDED_FEEDBACK_PRESENT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "receipt-replay",
+      "scenarioTitle": "Receipt replay attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B1_RAW",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": 8200,
+      "verifiedScoreBps": null,
+      "confidenceBps": 2000,
+      "distinctReviewerCount": 1,
+      "acceptedFeedbackCount": 5,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "receipt-replay",
+      "scenarioTitle": "Receipt replay attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B2_GROUNDED",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 8200,
+      "verifiedScoreBps": 1000,
+      "confidenceBps": 2000,
+      "distinctReviewerCount": 1,
+      "acceptedFeedbackCount": 1,
+      "rejectedFeedbackCount": 4,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT",
+        "REPLAY_ATTEMPT_PRESENT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "receipt-replay",
+      "scenarioTitle": "Receipt replay attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B3_REPUGATE",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 8200,
+      "verifiedScoreBps": 1000,
+      "confidenceBps": 2000,
+      "distinctReviewerCount": 1,
+      "acceptedFeedbackCount": 1,
+      "rejectedFeedbackCount": 4,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT",
+        "REPLAY_ATTEMPT_PRESENT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "reviewer-concentration",
+      "scenarioTitle": "Reviewer concentration",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B1_RAW",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": 7143,
+      "verifiedScoreBps": null,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 7,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "reviewer-concentration",
+      "scenarioTitle": "Reviewer concentration",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B2_GROUNDED",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": 7143,
+      "verifiedScoreBps": 7143,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 7,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "reviewer-concentration",
+      "scenarioTitle": "Reviewer concentration",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B3_REPUGATE",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 7143,
+      "verifiedScoreBps": 3333,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 7,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "offer-substitution",
+      "scenarioTitle": "Offer substitution attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B1_RAW",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 9000,
+      "verifiedScoreBps": null,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 3,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT"
+      ],
+      "offerRiskFlags": [
+        "OFFER_HASH_MISMATCH"
+      ]
+    },
+    {
+      "scenarioId": "offer-substitution",
+      "scenarioTitle": "Offer substitution attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B2_GROUNDED",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 9000,
+      "verifiedScoreBps": 9000,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 3,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT"
+      ],
+      "offerRiskFlags": [
+        "OFFER_HASH_MISMATCH"
+      ]
+    },
+    {
+      "scenarioId": "offer-substitution",
+      "scenarioTitle": "Offer substitution attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B3_REPUGATE",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 9000,
+      "verifiedScoreBps": 9000,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 3,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT"
+      ],
+      "offerRiskFlags": [
+        "OFFER_HASH_MISMATCH"
+      ]
+    }
+  ],
+  "summary": [
+    {
+      "model": "B1_RAW",
+      "honestScenarioAllowRateBps": 10000,
+      "attackScenarioAllowRateBps": 7500,
+      "attackScenariosAllowed": 3,
+      "attackScenarioCount": 4
+    },
+    {
+      "model": "B2_GROUNDED",
+      "honestScenarioAllowRateBps": 10000,
+      "attackScenarioAllowRateBps": 2500,
+      "attackScenariosAllowed": 1,
+      "attackScenarioCount": 4
+    },
+    {
+      "model": "B3_REPUGATE",
+      "honestScenarioAllowRateBps": 10000,
+      "attackScenarioAllowRateBps": 0,
+      "attackScenariosAllowed": 0,
+      "attackScenarioCount": 4
+    }
+  ]
+}

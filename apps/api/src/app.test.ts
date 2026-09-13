@@ -93,6 +93,13 @@ describe("service catalog", () => {
     expect(service.offer.amount).toBe("20000");
     expect(service.expectedOffer.amount).toBe("10000");
   });
+
+  it("includes the reviewer-concentration ablation scenario", async () => {
+    const instance = createApp();
+    const service = await getService(instance, "reviewer-concentration");
+
+    expect(service.offer.amount).toBe("10000");
+  });
 });
 
 async function evaluate(
@@ -160,6 +167,25 @@ describe("RepuGate API", () => {
     expect(created.statusCode).toBe(201);
     expect(created.body.evaluation.decision).toBe("BLOCK");
     expect(created.body.grant).toBeNull();
+  });
+
+  it("isolates B2 payment grounding from the B3 confidence gate", async () => {
+    const instance = createApp();
+    const b2 = await evaluate(
+      instance,
+      "reviewer-concentration",
+      "B2_GROUNDED",
+    );
+    const b3 = await evaluate(
+      instance,
+      "reviewer-concentration",
+      "B3_REPUGATE",
+    );
+
+    expect(b2.body.evaluation.decision).toBe("ALLOW");
+    expect(b2.body.grant).not.toBeNull();
+    expect(b3.body.evaluation.decision).toBe("BLOCK");
+    expect(b3.body.grant).toBeNull();
   });
 
   it("makes evaluation retries idempotent and rejects key reuse", async () => {

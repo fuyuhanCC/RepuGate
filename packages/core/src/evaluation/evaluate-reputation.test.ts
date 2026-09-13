@@ -13,7 +13,7 @@ import {
 import { evaluateReputation } from "./evaluate-reputation";
 
 describe("unified reputation evaluation", () => {
-  it("shows why raw B1 can allow an ungrounded reputation attack that B3 blocks", async () => {
+  it("shows why raw B1 can allow an attack that both grounded models block", async () => {
     const feedback = REVIEWERS.map((clientAddress, index) =>
       makeFeedback({
         clientAddress,
@@ -27,6 +27,13 @@ describe("unified reputation evaluation", () => {
       feedback,
       identity: IDENTITY,
       tag2: "inference",
+    });
+    const b2 = await evaluateReputation({
+      model: "B2_GROUNDED",
+      feedback,
+      identity: IDENTITY,
+      tag2: "inference",
+      paymentProofVerifier: new MapPaymentProofVerifier(new Map()),
     });
     const b3 = await evaluateReputation({
       model: "B3_REPUGATE",
@@ -43,6 +50,12 @@ describe("unified reputation evaluation", () => {
       decision: "ALLOW",
     });
     expect(b3).toMatchObject({
+      rawScoreBps: 10_000,
+      verifiedScoreBps: null,
+      confidenceBps: 0,
+      decision: "BLOCK",
+    });
+    expect(b2).toMatchObject({
       rawScoreBps: 10_000,
       verifiedScoreBps: null,
       confidenceBps: 0,

@@ -12,13 +12,14 @@ export const scenarioIdSchema = z.enum([
   "honest-service",
   "ungrounded-feedback",
   "receipt-replay",
+  "reviewer-concentration",
   "offer-substitution",
 ]);
 
 export const evaluationRequestSchema = z
   .object({
     buyer: evmAddressSchema,
-    model: z.enum(["B1_RAW", "B3_REPUGATE"]),
+    model: z.enum(["B1_RAW", "B2_GROUNDED", "B3_REPUGATE"]),
     scenarioId: scenarioIdSchema.default("honest-service"),
     offer: canonicalOfferInputSchema,
     expectedOfferHash: bytes32Schema,

@@ -87,6 +87,7 @@ export function evaluatePolicy(input: EvaluatePolicyInput): PolicyDecision {
   }
 
   const { scoreBps, confidenceBps } = input.assessment;
+  const requiresConfidence = input.assessment.model === "B3_REPUGATE";
 
   if (scoreBps === null) {
     return {
@@ -98,11 +99,15 @@ export function evaluatePolicy(input: EvaluatePolicyInput): PolicyDecision {
 
   if (
     scoreBps >= policy.allowScoreBps &&
-    confidenceBps >= policy.allowConfidenceBps
+    (!requiresConfidence || confidenceBps >= policy.allowConfidenceBps)
   ) {
     return {
       decision: "ALLOW",
-      reasons: ["SCORE_AND_CONFIDENCE_MEET_ALLOW_POLICY"],
+      reasons: [
+        requiresConfidence
+          ? "SCORE_AND_CONFIDENCE_MEET_ALLOW_POLICY"
+          : "SCORE_MEETS_ALLOW_POLICY",
+      ],
       policyHash,
     };
   }
