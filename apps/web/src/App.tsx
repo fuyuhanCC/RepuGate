@@ -115,7 +115,9 @@ function modelLabel(model: ReputationModel): string {
     case "B2_GROUNDED":
       return "B2";
     case "B3_REPUGATE":
-      return "B3";
+      return "B3-Beta";
+    case "B3_DIRICHLET":
+      return "B3-Dirichlet";
   }
 }
 
@@ -393,7 +395,12 @@ export function App() {
                   className={model === "B3_REPUGATE" ? "active" : ""}
                   onClick={() => setModel("B3_REPUGATE")}
                   type="button"
-                >B3 · RepuGate</button>
+                >B3 · Beta</button>
+                <button
+                  className={model === "B3_DIRICHLET" ? "active" : ""}
+                  onClick={() => setModel("B3_DIRICHLET")}
+                  type="button"
+                >B3 · Dirichlet</button>
               </div>
             </div>
             <div className="control-group budget-group">

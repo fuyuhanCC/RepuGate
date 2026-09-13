@@ -5,7 +5,11 @@ import type {
   IdentitySnapshot,
 } from "./types";
 
-export type ReputationModel = "B1_RAW" | "B2_GROUNDED" | "B3_REPUGATE";
+export type ReputationModel =
+  | "B1_RAW"
+  | "B2_GROUNDED"
+  | "B3_REPUGATE"
+  | "B3_DIRICHLET";
 
 export type Decision = "ALLOW" | "REVIEW" | "BLOCK";
 

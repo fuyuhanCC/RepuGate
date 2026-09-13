@@ -188,7 +188,7 @@ Adapter 将外部数据转换成 Core 可以处理的标准化输入：
 
 3. **Attack Lab（攻击实验室）**
 
-   加载由命令行实验程序生成的可复现攻击结果，并使用图表和表格比较 B1、B2 和 B3。Presentation 模式使用固定的实验数据，避免演示结果依赖测试网状态。网页不直接启动长时间实验任务。
+   加载由命令行实验程序生成的可复现攻击结果，并使用图表和表格比较 B1、B2、B3-Beta 和 B3-Dirichlet。Presentation 模式使用固定的实验数据，避免演示结果依赖测试网状态。网页不直接启动长时间实验任务。
 
 Trust Evaluation 页面可以包含付款凭证和审计详情抽屉。独立管理后台、用户管理系统和生产级分析平台不在项目范围内。
 
@@ -411,7 +411,7 @@ RepuGate 对每条评价尽可能检查以下条件：
   "verifiedScoreBps": 7600,
   "confidenceBps": 6000,
   "distinctReviewerCount": 3,
-  "riskFlags": ["LOW_DISTINCT_REVIEWER_COUNT"]
+  "riskFlags": []
 }
 ```
 
@@ -509,6 +509,21 @@ Evaluation API 是 `payment_attempts` 的唯一持久化写入方。浏览器通
 绑定、用户预算、钱包网络、一次性 Grant、重定向和付款状态检查。因此，如果 B1/B2/B3
 都阻止报价替换，这证明的是公共网关有效，而不是 B3 评分公式优于 B1/B2。
 
+### 当前评分范围
+
+当前评分器有意只评估一个语义明确的声誉维度：`tag1 = quality`，并将其表示为规定的
+0–100 分。确定性场景还要求 `tag2 = inference`，用于识别 AI inference 服务子类型；
+`inference` 是范围过滤条件，不是第二个数值评分维度。
+
+这是本项目的设计选择，而不是 ERC-8004 的限制。它使 B1/B2/B3 构成受控比较：所有
+基线估计同一种服务属性，实验变量只是评价如何被验证和聚合。身份绑定、付款有效性、
+reviewer 多样性和 confidence 属于证据或风险信号，因此与 quality 分数分开处理。
+
+latency、uptime、success rate、price 和 revenue 的单位、方向和语义均不相同。直接将
+它们与 quality 混合会得到任意的综合分数，使实验结论难以解释。未来的多维模型应分别
+定义并标准化各维度，输出各维度结果；只有在声明权重的明确策略中才能进一步组合。
+第 15.1 节说明了在当前 quality 维度内部扩展证据权重的兼容方案。
+
 ### B0：No Gate（参考基线，尚未实现）
 
 **目的。** B0 用来衡量 Buyer 只使用 x402 付款协议检查、完全不执行 ERC-8004
@@ -526,8 +541,8 @@ Provider、声誉被操纵的 Provider 和诚实 Provider 会得到相同待遇�
 但不能防御无付款刷分、receipt replay、评价者集中、付费 Sybil 自评、串谋、身份白洗，
 也不能判断服务是否可信。它没有可绑定到一次性 EvaluationGrant 的声誉决策。
 
-**实现状态。** B0 仍是扩展版报告实验的目标基线；当前 Presentation runner 只运行
-B1、B2 和 B3。
+**实现状态。** B0 仍是扩展版报告实验的目标基线；当前 Presentation runner 运行
+B1、B2、B3-Beta 和 B3-Dirichlet，尚未实现 B0。
 
 ### B1：Raw ERC-8004 Reputation
 
@@ -583,92 +598,221 @@ reviewer 多样性和 confidence 仍只用于诊断，不参与 B2 门控。
 自付款和串谋仍然可能发生。在固定 fixture 中，B2 阻止无付款刷分和 receipt replay，
 但会放行评价者集中攻击。
 
-### B3：RepuGate 当前原型
+### B3-Beta：Bayesian RepuGate（已实现）
 
-**目的。** B3 在 B2 上增加单 reviewer 影响上限和冷启动置信度门控，使一个地址即使
-完成多笔有效付款，也不能通过大量评价控制自动付款决策。
+**目的。** `B3_REPUGATE` 在 B2 上增加单 reviewer 影响上限和 Bayesian 冷启动模型。与直接使用
+算术平均不同，它为少量证据引入显式先验，不会假设任意样本量下的平均分都同样可靠。
 
 **证据检查。** B3 接受的付款证据与 B2 完全相同。
 
-**评分方法。** B3 按不区分大小写的 reviewer 地址分组，先计算每个 reviewer 的平均分，
-然后让每个 reviewer 只占一个等权票：
+**Reviewer 证据单元。** B3 按不区分大小写的 reviewer 地址分组。无论一个地址完成了
+多少次有效付款和评价，每个 reviewer 只贡献一个归一化证据单元：
 
 ```text
-reviewerScore(r) = reviewer r 提交的全部有效评价分数的平均值
-B3 score         = 所有不同 reviewerScore 的平均值
-confidence       = min(不同有效付款 reviewer 数量 / 5, 1)
+x_r = reviewer r 的有效评价平均分 / 100
+0 <= x_r <= 1
+n   = 不同有效付款 reviewer 数量
 ```
 
-因此，同一个 reviewer 提交五条评价与只提交一条评价具有相同的总体影响。B3 还要求
-score 与 confidence 同时满足 `ALLOW` 门槛。当前原型已经实现：
+**Bayesian 分数。** 模型使用均匀 `Beta(1,1)` 先验。连续 reviewer 分数贡献 `x_r`
+份正证据和 `1 - x_r` 份负证据：
+
+```text
+alpha = 1 + sum(x_r)
+beta  = 1 + sum(1 - x_r)
+B3-Beta score = alpha / (alpha + beta)
+```
+
+代码实现保持确定性，并避免浮点计算。若 `reviewerScoreBps(r)` 是每个 reviewer
+经过取整的 0–10,000 平均分，则：
+
+```text
+B3-Beta scoreBps = roundHalfUp((10,000 + sum(reviewerScoreBps(r))) / (n + 2))
+confidenceBps = floor(n * 10,000 / (n + 2))
+```
+
+**公式推导与来源。** 令 `p` 表示未来一次交互获得满意结果的未知概率。Beta posterior
+及其期望来自 Jøsang 和 Ismail 的
+[*The Beta Reputation System*](https://sites.cc.gatech.edu/fac/Charles.Isbell/classes/reading/papers/josang/JI2002-Bled.pdf)：
+
+```text
+p ~ Beta(alpha, beta)
+E[p | evidence] = alpha / (alpha + beta)
+
+alpha = alpha_0 + sum(x_r)
+beta  = beta_0  + sum(1 - x_r)
+alpha_0 = beta_0 = 1
+
+因此：
+E[p | evidence] = (1 + sum(x_r)) / (n + 2)
+```
+
+该论文允许把正面与负面反馈表示为连续数量；把归一化评分作为分数形式的正/负证据，
+也与 Jøsang、Luo 和 Chen 的
+[*Continuous Ratings in Discrete Bayesian Reputation Systems*](https://dl.ifip.org/db/conf/ifiptm/ifiptm2008/JosangLC08.pdf)
+一致。以下部分是明确的 **RepuGate 项目设计选择**，不能说成论文原封不动提出的公式：
+选择 `Beta(1,1)` 先验；先把同一钱包的全部记录合并为一个 reviewer mean；只接受有
+付款依据的证据；以及把 `confidence = n/(n+2)` 定义为 posterior 总质量中由实际
+reviewer 证据贡献的比例。因此 confidence 是工程上的 evidence-strength 指标，不是
+Bayesian credible level，也不是“决策正确的概率”。
+
+这是对 Beta Reputation System 的连续评分适配。先验会把极少样本产生的极端分数向
+50% 收缩。若 `n = 0`，RepuGate 报告无分数和零 confidence，而不会把先验均值冒充成
+实际测量的声誉。
+
+**证据置信度。** confidence 表示 posterior 中证据质量相对于先验加证据总质量的比例：
+
+```text
+confidence = n / (n + 2)
+```
+
+其中 `2` 来自 `Beta(1,1)` 的先验强度，而不是另行指定的“达到满置信度评价者数”。
+这个值表示 evidence certainty，不表示“分数有这么大的概率正确”。B1 和 B2 也会把
+该指标作为诊断信息，分别使用其范围过滤后和付款验证后的不同 reviewer 数量；只有 B3
+将其作为 `ALLOW` 条件。
+不同 reviewer 少于 3 个时会产生 `LOW_DISTINCT_REVIEWER_COUNT`；3 个 reviewer
+也正好是默认 60% confidence 门槛要求的最低数量。
+
+因此，同一个 reviewer 提交五条评价与只提交一条评价具有相同的总体影响。B3 要求
+posterior score 与 evidence confidence 同时满足 `ALLOW` 门槛。已批准设计包含：
 
 - 继承自 B2 的有效付款筛选
-- 评价者多样性统计
-- 通过按评价者聚合限制单个评价者影响
-- 最少不同评价者数量对应的置信度门控
+- 每个不同 reviewer 只贡献一个证据单元
+- `Beta(1,1)` 先验和 posterior mean 声誉分数
+- 用 posterior strength 处理冷启动 confidence
 
 **攻击覆盖。** B3 继承 B2 的全部防护，并进一步降低单钱包评价者集中攻击的效果，
-即使每条重复评价都具有不同的有效付款。confidence gate 还会阻止只有极少数有效
-reviewer 的高分服务被自动放行。在固定评价者集中 fixture 中，B2 计算
-`(5×100 + 2×0) / 7 = 71.43%` 并放行；B3 计算 `(100 + 0 + 0) / 3 = 33.33%`
-并阻止付款。
+即使每条重复评价都具有不同的有效付款。在固定评价者集中 fixture 中，B2 计算
+`(5×100 + 2×0) / 7 = 71.43%` 并放行；Bayesian B3 先得到 reviewer 证据
+`[1, 0, 0]`，再计算 `Beta(2,3)`，posterior score 为 40%，evidence confidence
+为 60%，因此分数低于策略门槛并阻止付款。诚实场景 `[80, 90, 100]` 得到
+`Beta(3.7,1.3)`，score 为 74%、confidence 为 60%，仍能通过冻结门槛。
 
-**局限。** B3 不是完整的 Sybil resistance。攻击者仍可资助多个钱包、进行真实付款，
-再让这些钱包表现为不同 reviewer。B3 目前也不能检测共同资金来源、多个 reviewer 串谋、
-短时间评价爆发、身份白洗，或真实付款后的恶意评价。时间衰减、短时间集中评价检测、
-共同资金来源分析和服务身份年龄明确属于未来工作，当前项目不声称已经实现。
+**局限。** B3 不是完整的 Sybil resistance。证据单元假设不同有效付款钱包具有一定
+独立性，但攻击者可以资助多个钱包并进行真实付款来破坏该假设。把连续分数拆分为分数
+形式的正负证据是一项明确的建模适配，并不表示每条评价都是字面意义上的 Bernoulli
+试验。B3 也不能检测共同资金来源、多个 reviewer 串谋、短时间评价爆发、身份白洗或
+真实付款后的恶意评价。先验选择、策略门槛和攻击比例需要 sensitivity analysis；
+posterior credible interval 是计划加入报告的指标，尚未成为实现中的门控条件。
 
 **权重设计理由。** 付款金额不能线性增加评价权重，因为 Provider 可以通过自付款
-收回大部分资金，从而低成本购买声誉。当前原型把不同有效付款人数量和单一评价者权重
-上限作为风险信号，而不是独立用户的证明；交易时间分布和资金集中度仍属于未来扩展。
+收回大部分资金，从而低成本购买声誉。不同有效付款人和单 reviewer 单位证据属于风险
+控制，而不是独立用户的证明；交易时间分布和资金集中度仍属于未来扩展。
+
+### B3-Dirichlet：有序多分类 Bayesian 变体（已实现）
+
+**目的。** `B3_DIRICHLET` 保留完整的 B3 安全路径，但把评分建模为五档有序类别分布，
+而不是压缩为一个 Beta 均值。五档及其锚点为：
+
+```text
+Very Poor = 0     Poor = 25     Neutral = 50
+Good = 75         Excellent = 100
+```
+
+**连续分数的模糊证据。** 同一个 reviewer 级分数 `x_r` 按线性比例分配给相邻两档。
+例如 80 分贡献 0.8 份 `Good` 和 0.2 份 `Excellent` 证据；90 分贡献 0.4 份
+`Good` 和 0.6 份 `Excellent`。无论该地址有多少评价，每个 reviewer 的总证据质量
+仍严格等于 1。
+
+**先验与分数。** 模型使用总强度为 2 的五档对称 Dirichlet 先验，每档初始质量为
+0.4。它与 `Beta(1,1)` 的总先验强度相同，便于公平比较。这里的分数不是普通平均分，
+而是一个含义更具体的后验预测概率：
+
+```text
+alpha_k = 0.4 + 分配到类别 k 的 reviewer 模糊证据之和
+B3-Dirichlet score = P(下一位独立 reviewer 给出 Good 或 Excellent | 当前证据)
+                   = (alpha_Good + alpha_Excellent) / sum(alpha_k)
+confidence         = n / (n + 2)
+```
+
+当 reviewer 分数 `x` 位于相邻锚点 `v_j` 与 `v_(j+1)` 之间时，实现采用以下三角形
+membership：
+
+```text
+mu_j(x)     = (v_(j+1) - x) / (v_(j+1) - v_j)
+mu_(j+1)(x) = (x - v_j)     / (v_(j+1) - v_j)
+sum_k mu_k(x) = 1
+```
+
+多分类 Bayesian 基础来自 Jøsang 与 Haller 的
+[*Dirichlet Reputation Systems*](https://doi.org/10.1109/ARES.2007.71)，它把二分类
+Beta 模型推广到多个评分等级。使用 fuzzy membership 把连续分数分配到相邻离散等级，
+来自 Jøsang、Luo 与 Chen 的
+[*Continuous Ratings in Discrete Bayesian Reputation Systems*](https://dl.ifip.org/db/conf/ifiptm/ifiptm2008/JosangLC08.pdf)。
+五个锚点、总强度 `C = 2` 的对称先验（`alpha_0,k = C/5 = 0.4`）、单 reviewer
+影响上限，以及最终使用 `P(Good) + P(Excellent)` 作为门控分数，都是
+**RepuGate 项目设计选择**。令 `m_(r,k) = mu_k(x_r)`，实现中的 posterior predictive
+概率为：
+
+```text
+alpha_k = C/5 + sum_r m_(r,k)
+P(L_k | evidence) = alpha_k / (C + n)
+score = P(Good | evidence) + P(Excellent | evidence)
+```
+
+共用的 confidence 公式同样是本项目定义的证据占比 `n/(C+n)`，不是 Dirichlet 论文
+提供的 credible interval。
+
+确定性定点数实现为每个 reviewer 使用 10,000 个证据单位，每档先验使用 4,000
+单位；当 `n = 0` 时报告无分数。诚实 `[80, 90, 100]` fixture 得到 76% score 和
+60% confidence；评价者集中 `[100, 0, 0]` 得到 36% 和 60%，因此被阻止。冻结功能
+实验中两种 B3 都使用 70% score 与 60% confidence 的 `ALLOW` 门槛。
+
+**解释与局限。** B3-Beta 估计连续质量的期望值，B3-Dirichlet 估计下一次出现
+`Good` 或更高评价的概率；两者回答不同问题，不能仅因某个百分比更大就判断模型更好。
+两个变体都继承 B2 的付款证据检查、单 reviewer 影响上限和相同的 Sybil 独立性局限。
 
 ### 攻击覆盖汇总
 
 `✓` 表示模型直接防御该攻击，`部分` 表示只能提高成本或覆盖受限形式，`✗` 表示模型
 不能防御。公共网关机制单独标记，因为它们不是声誉算法的改进。
 
-| 攻击或异常 | B0 | B1 | B2 | B3 | 原因 |
+| 攻击或异常 | B0 | B1 | B2 | B3-Beta | B3-Dirichlet | 原因 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 格式错误、已撤销、错误 Agent/tag/endpoint 评价 | 不适用 | ✓ | ✓ | ✓ | ✓ | B2/B3 继承 B1 的范围过滤 |
+| 没有付款依据的高分评价 | ✗ | ✗ | ✓ | ✓ | ✓ | B2/B3 要求通过验证的付款证据 |
+| 重复使用 receipt 或 authorization nonce | ✗ | ✗ | ✓ | ✓ | ✓ | B2/B3 强制 receipt 与 nonce 唯一 |
+| 错误 payer、recipient 或 Identity Epoch | ✗ | ✗ | ✓ | ✓ | ✓ | B2/B3 把证据绑定到 reviewer 和服务身份 |
+| 同一钱包通过多笔独立付款提交大量评价 | ✗ | ✗ | ✗ | ✓ | ✓ | 两种 B3 都让每个 reviewer 只占一个聚合票 |
+| 极少 reviewer 制造高分 | ✗ | ✗ | ✗ | ✓ | ✓ | 两种 B3 都把 confidence 用作 ALLOW 门槛 |
+| 多个真实付款且受同一资金方控制的 Sybil 钱包 | ✗ | ✗ | ✗ | 部分 | 部分 | 付款提高成本，但不能证明钱包独立 |
+| reviewer 串谋或真实顾客恶意评价 | ✗ | ✗ | ✗ | ✗ | ✗ | 付款证据不能证明评价内容诚实 |
+| 替换报价、收款方或 endpoint | ✗ | 公共网关 | 公共网关 | 公共网关 | 公共网关 | 来自 canonical offer/身份检查，而非评分 |
+| 重放 EvaluationGrant 或篡改授权 | 不适用 | 公共网关 | 公共网关 | 公共网关 | 公共网关 | 一次性 Grant 和逐字段 intent 复核 |
+
+### Bayesian 固定实验结果
+
+下表把已实现的攻击 fixtures 与两种 Bayesian B3 和冻结门槛对应起来。由于 B0 尚未
+接入 runner，因此不列入结果表。
+
+| Fixture | B1 | B2 | B3-Beta | B3-Dirichlet | 主要原因 |
 | --- | --- | --- | --- | --- | --- |
-| 格式错误、已撤销、错误 Agent/tag/endpoint 评价 | 不适用 | ✓ | ✓ | ✓ | B2/B3 继承 B1 的范围过滤 |
-| 没有付款依据的高分评价 | ✗ | ✗ | ✓ | ✓ | B2/B3 要求通过验证的付款证据 |
-| 重复使用 receipt 或 authorization nonce | ✗ | ✗ | ✓ | ✓ | B2/B3 强制 receipt 与 nonce 唯一 |
-| 错误 payer、recipient 或 Identity Epoch | ✗ | ✗ | ✓ | ✓ | B2/B3 把证据绑定到 reviewer 和服务身份 |
-| 同一钱包通过多笔独立付款提交大量评价 | ✗ | ✗ | ✗ | ✓ | B3 让每个 reviewer 只占一个聚合票 |
-| 极少 reviewer 制造高分 | ✗ | ✗ | ✗ | ✓ | 只有 B3 把 confidence 用作 ALLOW 门槛 |
-| 多个真实付款且受同一资金方控制的 Sybil 钱包 | ✗ | ✗ | ✗ | 部分 | 付款提高成本，但不能证明钱包独立 |
-| reviewer 串谋或真实顾客恶意评价 | ✗ | ✗ | ✗ | ✗ | 付款证据不能证明评价内容诚实 |
-| 替换报价、收款方或 endpoint | ✗ | 公共网关 | 公共网关 | 公共网关 | 来自 canonical offer/身份检查，而非评分 |
-| 重放 EvaluationGrant 或篡改授权 | 不适用 | 公共网关 | 公共网关 | 公共网关 | 一次性 Grant 和逐字段 intent 复核 |
+| Honest（诚实场景） | ALLOW | ALLOW | ALLOW（74%） | ALLOW（76%） | 评价有效、有付款依据且 reviewer 足够分散 |
+| Ungrounded ratings（无付款评价） | ALLOW | BLOCK | BLOCK | BLOCK | B1 不要求付款证明；B2/B3 会过滤这些评价 |
+| Receipt replay（回执重放） | ALLOW | BLOCK | BLOCK（36.7%） | BLOCK（26.7%） | B2/B3 对重复付款回执只接纳一条评价 |
+| Reviewer concentration（评价者集中） | ALLOW | ALLOW | BLOCK（40%） | BLOCK（36%） | B3 消除同钱包的数量优势后无法通过分数门槛 |
+| Expected-offer mismatch（预期报价不匹配） | BLOCK | BLOCK | BLOCK | BLOCK | 公共 canonical-offer 网关在付款前阻止，与声誉分数无关 |
 
-### 当前固定实验结果
+### 已批准的 Bayesian 决策策略
 
-下表把已实现的攻击 fixtures 与冻结的决策策略对应起来。由于 B0 尚未接入 runner，
-因此不列入结果表。
-
-| Fixture | B1 | B2 | B3 | 主要原因 |
-| --- | --- | --- | --- | --- |
-| Honest（诚实场景） | ALLOW | ALLOW | ALLOW | 评价有效、有付款依据且 reviewer 足够分散 |
-| Ungrounded ratings（无付款评价） | ALLOW | BLOCK | BLOCK | B1 不要求付款证明；B2/B3 会过滤这些评价 |
-| Receipt replay（回执重放） | ALLOW | BLOCK | BLOCK | B2/B3 对重复付款回执只接纳一条评价 |
-| Reviewer concentration（评价者集中） | ALLOW | ALLOW | BLOCK | B3 消除同钱包的数量优势后，无法通过分数/置信度门槛 |
-| Expected-offer mismatch（预期报价不匹配） | BLOCK | BLOCK | BLOCK | 公共 canonical-offer 网关在付款前阻止，与声誉分数无关 |
-
-### 当前决策策略
-
-实现与 Presentation 实验冻结使用的 `repugate-policy-v1` 参数为：
+Bayesian 实现把策略版本更新为 `repugate-policy-v2-bayesian`，避免 Grant 静默复用
+v1 `policyHash` 的旧语义。已批准门槛为：
 
 ```text
 ALLOW 分数门槛           70%（7,000 bps）
 REVIEW 分数门槛          50%（5,000 bps）
 B3 ALLOW 置信度门槛      60%（6,000 bps）
-达到满置信度的评价者数    5
-confidence               min(不同有效付款评价者数 / 5, 1)
+Bayesian 先验             Beta(1,1)；对称 Dirichlet(0.4 × 5)
+confidence               n / (n + 2)，n 为对应阶段的不同 reviewer 数量
 ```
 
-B1 和 B2 只使用分数门槛，confidence 仅作为诊断信息；B3 必须同时满足分数和
+B1 和 B2 只使用分数门槛，confidence 仅作为诊断信息；两种 B3 必须同时满足分数和
 confidence 才能 `ALLOW`。分数达到 70% 但 B3 置信度不足时返回 `REVIEW`，分数
 低于 50% 时返回 `BLOCK`。对于三个已实现模型，任何身份或准确报价绑定失败都会
-直接 `BLOCK`。这些策略参数会被包含在 `policyHash` 中。
+直接 `BLOCK`。这些策略参数和语义版本会被包含在 `policyHash` 中。
+
+当前代码与生成的 Presentation artifact 已在 v2 policy hash 语义下实现两种
+Bayesian B3。
 
 ## 9. 威胁模型
 
@@ -838,27 +982,36 @@ RQ3、RQ4 以及重试行为的统计测量仍属于最终报告规模的实验�
 - 声誉风险标记和准确报价风险标记
 
 它还汇总每个模型的诚实场景放行率和对抗 fixture 放行率。当前
-`75% / 25% / 0%` 只表示 B1/B2/B3 分别放行四个固定 fixture 中的
-`3 / 1 / 0` 个，不是总体统计估计。
+`75% / 25% / 0% / 0%` 只表示 B1/B2/B3-Beta/B3-Dirichlet 分别放行四个
+固定 fixture 中的 `3 / 1 / 0 / 0` 个，不是总体统计估计。
 
 以下是报告规模的计划指标，当前 runner 尚不输出：带置信区间的诚实服务误拒绝率、
 生成样本上的无效评价/重放接受率、重复付款率、分数膨胀曲线、攻击成本、人工确认率、
 冷启动交互数、P50/P95/P99 延迟、RPC 调用次数和 Gas 成本。
 
+Bayesian 报告实验必须预先声明 sensitivity sweep，至少比较 `Beta(0.5,0.5)`、
+`Beta(1,1)`、`Beta(2,2)` 三种先验、不同强度的对称 Dirichlet 先验，以及
+50%、60%、70% 三种 confidence 门槛。
+最终配置应先在开发集上固定，再评估 held-out 场景，避免看到最终攻击结果后才选择先验
+和策略参数。
+
 ### 12.4 公平比较方式
 
-B1、B2 和 B3 必须在相同或接近的诚实服务通过率下进行比较，否则系统可能仅仅因为阻止了大量请求而显得安全。
+B1、B2 和两种 B3 必须在相同或接近的诚实服务通过率下进行比较，否则系统可能仅仅
+因为阻止了大量请求而显得安全。
 
 核心比较问题是：
 
 ```text
 在诚实服务通过率相同的情况下：
 1. B2 相比 B1 能否减少无付款和凭证重放导致的付款？
-2. B3 相比 B2 能否减少评价者集中情况下的付款？
+2. 两种 B3 相比 B2 能否减少评价者集中情况下的付款？
+3. Beta 的期望质量与 Dirichlet 的 Good-or-better 语义在诚实、冷启动和攻击分布下
+   分别有什么表现？
 ```
 
 当前 Presentation 对比是确定性功能基准：所有模型使用同一 fixture 和冻结策略，
-保存配置 hash 与原始 JSON/CSV，并且三个模型都放行唯一的诚实对照 fixture。
+保存配置 hash 与原始 JSON/CSV，并且四个模型都放行唯一的诚实对照 fixture。
 由于它只有一个诚实 fixture、四个对抗 fixture、没有随机采样，而且每个组合只运行
 一次，因此不能计算置信区间，也不能据此作总体统计结论。
 
@@ -879,8 +1032,8 @@ B1、B2 和 B3 必须在相同或接近的诚实服务通过率下进行比较�
 每个配置重复运行 20 次
 ```
 
-当前 Presentation 数据集包含一个诚实对照和四个对抗 fixture，分别在 B1、B2、B3
-下运行一次，共产生 15 行结果。
+当前 Presentation 数据集包含一个诚实对照和四个对抗 fixture，分别在 B1、B2、
+B3-Beta、B3-Dirichlet 下运行一次，共产生 20 行结果。
 
 ## 13. Presentation MVP
 
@@ -896,13 +1049,14 @@ Presentation 原型优先实现一条可稳定演示的完整纵向流程：
 - payment identifier 和结算状态展示
 - B1 原始声誉
 - B2 付款依据过滤后的声誉
-- 带 reviewer 级聚合和置信度门控的 B3 RepuGate 当前原型
+- 采用 reviewer 级聚合与 confidence gate 的 B3-Beta posterior mean 模型
+- 在五档有序类别上计算 Good-or-better 后验预测概率的 B3-Dirichlet 模型
 - `ALLOW` 和 `BLOCK` 决策
 - 无付款刷分攻击
 - 付款凭证重放攻击
 - 评价者集中攻击
 - 报价替换攻击
-- 由冻结实验数据生成的 B1/B2/B3 对比卡片和攻击矩阵
+- 由冻结实验数据生成的四模型对比卡片和攻击矩阵
 - 一次确定性模拟付款流程；准备完成时再增加 Base Sepolia Live 流程
 - 一个浏览器前端展示页面
 - Service Explorer、Trust Evaluation 和 Attack Lab 三个视图
@@ -966,6 +1120,33 @@ RepuGate/
 
 ## 15. 推迟或移除的组件
 
+### 15.1 未来声誉模型扩展
+
+如第 8 节所定义，当前评分器只评估 `quality` 维度。以下 future work 在这个受控范围
+内扩展证据处理方式。
+
+以下两个兼容扩展暂缓到 future work。它们改变的是**同一个 quality 维度内部**的证据
+权重，而不是增加新的评价维度：
+
+1. **Reviewer trust weighting。** 为 reviewer 分配透明权重 `w_r`，且权重依据必须独立
+   于目标 Agent 当前分数，例如经过验证的交互历史、钱包年龄、资金聚类风险、可信信号
+   提供者 allowlist，或者 EigenTrust/OpenRank 风格的信任图。B3-Beta 可以分别累加
+   `w_r*x_r` 正证据与 `w_r*(1-x_r)` 负证据；B3-Dirichlet 可以向类别 `k` 累加
+   `w_r*mu_k(x_r)`。权重必须设置上限并可审计，以减少中心化和循环信誉风险。实验需要
+   reviewer graph 或带标签的 reviewer 数据集、可信 seed 敏感性测试，以及多个受同一
+   资金方控制的钱包攻击。
+
+2. **Time decay。** 使用 `w_time = 2^(-age/halfLife)` 等近期权重，使证据经过预先声明
+   的 half-life 后影响力减半。它能响应 endpoint、模型或服务质量的变化，但也可能放大
+   攻击者集中制造近期评价的 burst attack。half-life 应在开发集上确定并执行敏感性
+   分析，不能观察最终攻击结果后再调整。
+
+若同时使用两项扩展，可以采用有上限的组合权重 `w_r = w_trust * w_time`。此时不能
+原样沿用当前 `n/(n+2)` confidence；加权证据需要明确使用 `sum(w_r)` 等有效证据质量，
+或有效样本量估计，并重新校准门槛。这些扩展尚未实现，也不属于当前安全性结论。
+
+### 15.2 其他推迟组件
+
 初始设计明确排除以下内容：
 
 - 独立区块链 Indexer
@@ -990,7 +1171,7 @@ RepuGate/
 - 确定性本地 Demo
 - 可交互的浏览器前端展示平台
 - 可选的公共测试网演示
-- Presentation 使用 B1/B2/B3 基线，扩展版报告实验再加入 B0
+- Presentation 使用 B1/B2/B3-Beta/B3-Dirichlet 基线，扩展版报告实验再加入 B0
 - 至少三个可复现的攻击场景
 - 保存的实验配置和结果文件
 - 可以重新生成表格或图表的脚本
@@ -1025,7 +1206,7 @@ RepuGate/
 - Honest 和 Malicious 服务使用不同的 ERC-8004 身份、endpoint 和收款配置
 - 使用 React/Vite 构建同时支持确定性 Demo 和可选 Live 模式的前端展示平台
 - 使用 TypeScript、Node.js、viem、SQLite、Vitest 和 pnpm workspace
-- Pre 核心实验固定比较 B1、B2 和 B3，并演示无付款刷分、凭证重放、评价者集中和报价替换
+- Pre 核心实验固定比较 B1、B2、B3-Beta 和 B3-Dirichlet，并演示无付款刷分、凭证重放、评价者集中和报价替换
 - 只声称 Payment-Grounded 和 Reviewer-Concentration-Aware
 - 不声称完全抵御 Sybil 攻击
 - 不声称付款或签名 delivery receipt 能证明 AI 输出的语义质量
@@ -1044,3 +1225,6 @@ RepuGate/
 - Aegis signer-proxy 参考实现：<https://github.com/Animesh-Parashar/Aegis-Protocol>
 - x402-receipts 参考实现：<https://github.com/StelarDigital/x402-receipts>
 - 已知 Offer/Receipt 绑定限制：<https://github.com/x402-foundation/x402/issues/3006>
+- Jøsang 与 Ismail，*The Beta Reputation System*（2002）：<https://sites.cc.gatech.edu/fac/Charles.Isbell/classes/reading/papers/josang/JI2002-Bled.pdf>
+- Jøsang、Luo 与 Chen，*Continuous Ratings in Discrete Bayesian Reputation Systems*（2008）：<https://dl.ifip.org/db/conf/ifiptm/ifiptm2008/JosangLC08.pdf>
+- Jøsang 与 Haller，*Dirichlet Reputation Systems*（2007）：<https://doi.org/10.1109/ARES.2007.71>

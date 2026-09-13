@@ -16,7 +16,7 @@ const POLICY_ABI = [
 ] as const;
 
 export const DEFAULT_POLICY_CONFIG: Readonly<PolicyConfig> = Object.freeze({
-  version: "repugate-policy-v1",
+  version: "repugate-policy-v2-bayesian",
   allowScoreBps: 7_000,
   allowConfidenceBps: 6_000,
   reviewScoreBps: 5_000,
@@ -87,7 +87,9 @@ export function evaluatePolicy(input: EvaluatePolicyInput): PolicyDecision {
   }
 
   const { scoreBps, confidenceBps } = input.assessment;
-  const requiresConfidence = input.assessment.model === "B3_REPUGATE";
+  const requiresConfidence =
+    input.assessment.model === "B3_REPUGATE" ||
+    input.assessment.model === "B3_DIRICHLET";
 
   if (scoreBps === null) {
     return {

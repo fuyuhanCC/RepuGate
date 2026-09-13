@@ -16,6 +16,7 @@ export const EXPERIMENT_MODELS = [
   "B1_RAW",
   "B2_GROUNDED",
   "B3_REPUGATE",
+  "B3_DIRICHLET",
 ] as const satisfies readonly ReputationModel[];
 
 export type ScenarioKind = "CONTROL" | "ADVERSARIAL";

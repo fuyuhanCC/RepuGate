@@ -300,7 +300,7 @@ describe("RepuGate API", () => {
     expect(created.body.grant).toBeNull();
   });
 
-  it("isolates B2 payment grounding from the B3 confidence gate", async () => {
+  it("isolates B2 payment grounding from both B3 confidence-aware models", async () => {
     const instance = createApp();
     const b2 = await evaluate(
       instance,
@@ -312,11 +312,23 @@ describe("RepuGate API", () => {
       "reviewer-concentration",
       "B3_REPUGATE",
     );
+    const dirichlet = await evaluate(
+      instance,
+      "reviewer-concentration",
+      "B3_DIRICHLET",
+    );
 
     expect(b2.body.evaluation.decision).toBe("ALLOW");
     expect(b2.body.grant).not.toBeNull();
     expect(b3.body.evaluation.decision).toBe("BLOCK");
     expect(b3.body.grant).toBeNull();
+    expect(dirichlet.statusCode).toBe(201);
+    expect(dirichlet.body.evaluation).toMatchObject({
+      model: "B3_DIRICHLET",
+      verifiedScoreBps: 3_600,
+      decision: "BLOCK",
+    });
+    expect(dirichlet.body.grant).toBeNull();
   });
 
   it("makes evaluation retries idempotent and rejects key reuse", async () => {

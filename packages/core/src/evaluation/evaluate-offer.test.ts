@@ -20,7 +20,7 @@ describe("evaluateOffer", () => {
     expect(result).toMatchObject({
       model: "B3_REPUGATE",
       rawScoreBps: 9_000,
-      verifiedScoreBps: 9_000,
+      verifiedScoreBps: 7_400,
       confidenceBps: 6_000,
       decision: "ALLOW",
       identityMatched: true,

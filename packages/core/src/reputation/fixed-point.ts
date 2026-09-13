@@ -1,4 +1,6 @@
 export const MAX_SCORE_BPS = 10_000;
+export const DEFAULT_MINIMUM_DISTINCT_REVIEWERS = 3;
+export const BAYESIAN_PRIOR_STRENGTH = 2;
 
 const MAX_SCORE = 100n;
 
@@ -44,23 +46,13 @@ export function averageScoreBps(values: readonly number[]): number | null {
 
 export function confidenceFromDistinctReviewers(
   distinctReviewerCount: number,
-  reviewersForFullConfidence: number,
 ): number {
-  if (!Number.isSafeInteger(reviewersForFullConfidence) || reviewersForFullConfidence <= 0) {
-    throw new RangeError("reviewersForFullConfidence must be a positive safe integer");
-  }
-
   if (!Number.isSafeInteger(distinctReviewerCount) || distinctReviewerCount < 0) {
     throw new RangeError("distinctReviewerCount must be a non-negative safe integer");
   }
 
-  const confidence =
-    (BigInt(distinctReviewerCount) * BigInt(MAX_SCORE_BPS)) /
-    BigInt(reviewersForFullConfidence);
-
   return Number(
-    confidence > BigInt(MAX_SCORE_BPS)
-      ? BigInt(MAX_SCORE_BPS)
-      : confidence,
+    (BigInt(distinctReviewerCount) * BigInt(MAX_SCORE_BPS)) /
+      BigInt(distinctReviewerCount + BAYESIAN_PRIOR_STRENGTH),
   );
 }

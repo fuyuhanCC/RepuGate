@@ -55,7 +55,7 @@ RepuGate/
 │   │       ├── domain/                  # 领域类型与不变量
 │   │       ├── schemas/                 # 跨边界 DTO runtime schemas
 │   │       ├── canonicalization/        # offer/request/identity hashes
-│   │       ├── reputation/              # B1、B2、B3 评分
+│   │       ├── reputation/              # B1/B2 与 B3 Beta/Dirichlet 评分
 │   │       ├── policy/                  # ALLOW/REVIEW/BLOCK
 │   │       ├── evaluation/              # 共享评估 use case
 │   │       ├── grants/                  # Grant 纯校验规则
@@ -134,7 +134,11 @@ packages/client ────→ MetaMask / target Provider
 
 ```ts
 type Decision = "ALLOW" | "REVIEW" | "BLOCK";
-type Baseline = "B1_RAW" | "B2_GROUNDED" | "B3_REPUGATE";
+type Baseline =
+  | "B1_RAW"
+  | "B2_GROUNDED"
+  | "B3_REPUGATE"   // Beta(1,1) posterior mean
+  | "B3_DIRICHLET"; // Good 或 Excellent 的后验概率
 
 interface AgentReference {
   chainId: number;

@@ -23,7 +23,7 @@ describe("B1 raw ERC-8004 reputation", () => {
     const result = assessB1RawReputation({ feedback, scope });
 
     expect(result.scoreBps).toBe(10_000);
-    expect(result.confidenceBps).toBe(10_000);
+    expect(result.confidenceBps).toBe(7_142);
     expect(result.acceptedFeedback).toHaveLength(5);
   });
 

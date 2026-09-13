@@ -33,8 +33,15 @@ describe("fixed-point reputation math", () => {
     expect(() => averageScoreBps([10_001])).toThrow(RangeError);
   });
 
-  it("caps confidence at 100 percent", () => {
-    expect(confidenceFromDistinctReviewers(3, 5)).toBe(6_000);
-    expect(confidenceFromDistinctReviewers(6, 5)).toBe(10_000);
+  it("derives confidence from evidence relative to prior strength", () => {
+    expect(confidenceFromDistinctReviewers(0)).toBe(0);
+    expect(confidenceFromDistinctReviewers(1)).toBe(3_333);
+    expect(confidenceFromDistinctReviewers(3)).toBe(6_000);
+    expect(confidenceFromDistinctReviewers(6)).toBe(7_500);
+  });
+
+  it("rejects invalid reviewer counts", () => {
+    expect(() => confidenceFromDistinctReviewers(-1)).toThrow(RangeError);
+    expect(() => confidenceFromDistinctReviewers(1.5)).toThrow(RangeError);
   });
 });

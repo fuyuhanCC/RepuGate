@@ -12,11 +12,12 @@ async function run(
 }
 
 describe("deterministic presentation scenarios", () => {
-  it("allows honest payment-grounded feedback under all three models", async () => {
-    const [b1, b2, b3] = await Promise.all([
+  it("allows honest payment-grounded feedback under all four models", async () => {
+    const [b1, b2, b3, dirichlet] = await Promise.all([
       run("honest-service", "B1_RAW"),
       run("honest-service", "B2_GROUNDED"),
       run("honest-service", "B3_REPUGATE"),
+      run("honest-service", "B3_DIRICHLET"),
     ]);
 
     expect(b1).toMatchObject({ rawScoreBps: 9_000, decision: "ALLOW" });
@@ -24,8 +25,12 @@ describe("deterministic presentation scenarios", () => {
       verifiedScoreBps: 9_000,
       decision: "ALLOW",
     });
+    expect(dirichlet).toMatchObject({
+      verifiedScoreBps: 7_600,
+      decision: "ALLOW",
+    });
     expect(b3).toMatchObject({
-      verifiedScoreBps: 9_000,
+      verifiedScoreBps: 7_400,
       decision: "ALLOW",
     });
   });
@@ -39,7 +44,7 @@ describe("deterministic presentation scenarios", () => {
 
     expect(b1).toMatchObject({
       rawScoreBps: 10_000,
-      confidenceBps: 10_000,
+      confidenceBps: 7_142,
       decision: "ALLOW",
     });
     expect(b3).toMatchObject({
@@ -67,7 +72,7 @@ describe("deterministic presentation scenarios", () => {
       decision: "ALLOW",
     });
     expect(b3).toMatchObject({
-      verifiedScoreBps: 3_333,
+      verifiedScoreBps: 4_000,
       confidenceBps: 6_000,
       decision: "BLOCK",
     });
@@ -82,7 +87,7 @@ describe("deterministic presentation scenarios", () => {
 
     expect(b1.rawScoreBps).toBe(8_200);
     expect(b1.acceptedFeedback).toHaveLength(5);
-    expect(b3.verifiedScoreBps).toBe(1_000);
+    expect(b3.verifiedScoreBps).toBe(3_667);
     expect(b3.acceptedFeedback).toHaveLength(1);
     expect(
       b3.rejectedFeedback.filter((item) => item.reason === "RECEIPT_REPLAY"),
@@ -93,7 +98,7 @@ describe("deterministic presentation scenarios", () => {
   it("blocks a changed amount even when the provider has good reputation", async () => {
     const result = await run("offer-substitution", "B3_REPUGATE");
 
-    expect(result.verifiedScoreBps).toBe(9_000);
+    expect(result.verifiedScoreBps).toBe(7_400);
     expect(result.offerRiskFlags).toEqual(["OFFER_HASH_MISMATCH"]);
     expect(result.decision).toBe("BLOCK");
     expect(result.decisionReasons).toContain(

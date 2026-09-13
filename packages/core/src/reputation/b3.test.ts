@@ -75,7 +75,7 @@ function verifierFor(
   );
 }
 
-describe("B3 payment-grounded reputation", () => {
+describe("B3 Beta payment-grounded reputation", () => {
   it("rejects ungrounded feedback without calling the chain verifier", async () => {
     const verifier = new MapPaymentProofVerifier(new Map());
     const feedback = REVIEWERS.map((clientAddress, index) =>
@@ -132,7 +132,7 @@ describe("B3 payment-grounded reputation", () => {
       paymentProofVerifier: verifier,
     });
 
-    expect(result.scoreBps).toBe(9_000);
+    expect(result.scoreBps).toBe(6_333);
     expect(result.acceptedFeedback).toHaveLength(1);
     expect(
       result.rejectedFeedback.filter(
@@ -171,7 +171,7 @@ describe("B3 payment-grounded reputation", () => {
       paymentProofVerifier: verifierFor(items),
     });
 
-    expect(result.scoreBps).toBe(6_500);
+    expect(result.scoreBps).toBe(5_750);
     expect(result.distinctReviewerCount).toBe(2);
   });
 
@@ -192,7 +192,7 @@ describe("B3 payment-grounded reputation", () => {
       paymentProofVerifier: verifierFor(items),
     });
 
-    expect(result.scoreBps).toBe(9_000);
+    expect(result.scoreBps).toBe(7_400);
     expect(result.confidenceBps).toBe(6_000);
     expect(result.distinctReviewerCount).toBe(3);
   });

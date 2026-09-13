@@ -12,7 +12,7 @@ describe("presentation experiment", () => {
       report.summary.map((item) => [item.model, item]),
     );
 
-    expect(report.results).toHaveLength(15);
+    expect(report.results).toHaveLength(20);
     expect(summary.B1_RAW).toMatchObject({
       honestScenarioAllowRateBps: 10_000,
       attackScenarioAllowRateBps: 7_500,
@@ -22,6 +22,10 @@ describe("presentation experiment", () => {
       attackScenarioAllowRateBps: 2_500,
     });
     expect(summary.B3_REPUGATE).toMatchObject({
+      honestScenarioAllowRateBps: 10_000,
+      attackScenarioAllowRateBps: 0,
+    });
+    expect(summary.B3_DIRICHLET).toMatchObject({
       honestScenarioAllowRateBps: 10_000,
       attackScenarioAllowRateBps: 0,
     });

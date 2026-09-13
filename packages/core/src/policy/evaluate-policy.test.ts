@@ -36,7 +36,7 @@ describe("policy evaluation", () => {
     expect(result.reasons).toEqual(["CONFIDENCE_BELOW_ALLOW_THRESHOLD"]);
   });
 
-  it("uses confidence as a hard gate only in the full B3 model", () => {
+  it("uses confidence as a hard gate only in the B3 family", () => {
     expect(
       evaluatePolicy({
         assessment: assessment(10_000, 2_000, "B2_GROUNDED"),
@@ -48,6 +48,14 @@ describe("policy evaluation", () => {
     expect(
       evaluatePolicy({
         assessment: assessment(10_000, 2_000, "B3_REPUGATE"),
+      }),
+    ).toMatchObject({
+      decision: "REVIEW",
+      reasons: ["CONFIDENCE_BELOW_ALLOW_THRESHOLD"],
+    });
+    expect(
+      evaluatePolicy({
+        assessment: assessment(10_000, 2_000, "B3_DIRICHLET"),
       }),
     ).toMatchObject({
       decision: "REVIEW",

@@ -196,7 +196,7 @@ main { margin: 0 auto; max-width: 1480px; padding: 0 clamp(24px, 5vw, 72px) 100p
 .experiment-provenance { align-items: flex-end; display: flex; flex-direction: column; gap: 7px; }
 .experiment-provenance span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
 .experiment-provenance code { color: var(--green-strong); font-size: 10px; }
-.experiment-summary { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); }
+.experiment-summary { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
 .experiment-model { background: rgba(12, 28, 23, 0.65); border: 1px solid var(--line); padding: 22px; }
 .experiment-model-heading { align-items: baseline; display: flex; justify-content: space-between; margin-bottom: 26px; }
 .experiment-model-heading strong { font-size: 15px; }

@@ -81,8 +81,10 @@ export {
 export { normalizeFeedbackRecord } from "./reputation/normalize-feedback";
 
 export {
+  BAYESIAN_PRIOR_STRENGTH,
   averageScoreBps,
   confidenceFromDistinctReviewers,
+  DEFAULT_MINIMUM_DISTINCT_REVIEWERS,
   MAX_SCORE_BPS,
   toQualityScoreBps,
 } from "./reputation/fixed-point";
@@ -95,6 +97,14 @@ export type { B2AssessmentInput } from "./reputation/b2";
 
 export { assessB3Reputation } from "./reputation/b3";
 export type { B3AssessmentInput } from "./reputation/b3";
+
+export { assessB3DirichletReputation } from "./reputation/b3-dirichlet";
+export type { B3DirichletAssessmentInput } from "./reputation/b3-dirichlet";
+
+export {
+  betaPosteriorMeanBps,
+  dirichletGoodOrBetterBps,
+} from "./reputation/bayesian-score";
 
 export {
   createFeedbackKey,
@@ -117,6 +127,7 @@ export { evaluateReputation } from "./evaluation/evaluate-reputation";
 export type {
   B1ReputationEvaluationInput,
   B2ReputationEvaluationInput,
+  B3DirichletReputationEvaluationInput,
   B3ReputationEvaluationInput,
   ReputationEvaluationInput,
 } from "./evaluation/evaluate-reputation";

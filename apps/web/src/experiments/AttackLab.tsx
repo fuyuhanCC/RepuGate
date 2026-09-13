@@ -12,7 +12,9 @@ function modelLabel(model: ReputationModel): string {
     case "B2_GROUNDED":
       return "B2 · Grounded";
     case "B3_REPUGATE":
-      return "B3 · RepuGate";
+      return "B3 · Beta";
+    case "B3_DIRICHLET":
+      return "B3 · Dirichlet";
   }
 }
 

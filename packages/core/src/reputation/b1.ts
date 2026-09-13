@@ -7,6 +7,7 @@ import type { FeedbackRecord } from "../domain/reputation";
 import {
   averageScoreBps,
   confidenceFromDistinctReviewers,
+  DEFAULT_MINIMUM_DISTINCT_REVIEWERS,
 } from "./fixed-point";
 import {
   filterQualityFeedback,
@@ -16,13 +17,11 @@ import {
 export interface B1AssessmentInput {
   feedback: readonly FeedbackRecord[];
   scope: QualityFeedbackScope;
-  reviewersForFullConfidence?: number;
 }
 
 export function assessB1RawReputation(
   input: B1AssessmentInput,
 ): ReputationAssessment {
-  const reviewersForFullConfidence = input.reviewersForFullConfidence ?? 5;
   const filtered = filterQualityFeedback(input.feedback, input.scope);
   const acceptedFeedback: FeedbackEvaluation[] = filtered.candidates.map(
     (candidate) => ({
@@ -43,7 +42,7 @@ export function assessB1RawReputation(
     riskFlags.push("NO_ELIGIBLE_FEEDBACK");
   }
 
-  if (distinctReviewerCount < reviewersForFullConfidence) {
+  if (distinctReviewerCount < DEFAULT_MINIMUM_DISTINCT_REVIEWERS) {
     riskFlags.push("LOW_DISTINCT_REVIEWER_COUNT");
   }
 
@@ -52,10 +51,7 @@ export function assessB1RawReputation(
     scoreBps: averageScoreBps(
       acceptedFeedback.map((item) => item.scoreBps!),
     ),
-    confidenceBps: confidenceFromDistinctReviewers(
-      distinctReviewerCount,
-      reviewersForFullConfidence,
-    ),
+    confidenceBps: confidenceFromDistinctReviewers(distinctReviewerCount),
     distinctReviewerCount,
     acceptedFeedback,
     rejectedFeedback: filtered.rejected,

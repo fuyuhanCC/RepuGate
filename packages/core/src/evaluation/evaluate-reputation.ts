@@ -13,6 +13,7 @@ import { evaluatePolicy } from "../policy/evaluate-policy";
 import { assessB1RawReputation } from "../reputation/b1";
 import { assessB2GroundedReputation } from "../reputation/b2";
 import { assessB3Reputation } from "../reputation/b3";
+import { assessB3DirichletReputation } from "../reputation/b3-dirichlet";
 import type { QualityFeedbackScope } from "../reputation/quality-feedback";
 
 interface CommonEvaluationInput {
@@ -23,7 +24,6 @@ interface CommonEvaluationInput {
   policy?: PolicyConfig;
   identityMatched?: boolean;
   offerRiskFlags?: readonly string[];
-  reviewersForFullConfidence?: number;
   receiptUsageReader?: ReceiptUsageReader;
 }
 
@@ -45,10 +45,16 @@ export interface B3ReputationEvaluationInput
   model: "B3_REPUGATE";
 }
 
+export interface B3DirichletReputationEvaluationInput
+  extends GroundedReputationEvaluationInput {
+  model: "B3_DIRICHLET";
+}
+
 export type ReputationEvaluationInput =
   | B1ReputationEvaluationInput
   | B2ReputationEvaluationInput
-  | B3ReputationEvaluationInput;
+  | B3ReputationEvaluationInput
+  | B3DirichletReputationEvaluationInput;
 
 function buildScope(input: CommonEvaluationInput): QualityFeedbackScope {
   return {
@@ -66,7 +72,6 @@ export async function evaluateReputation(
   const b1 = assessB1RawReputation({
     feedback: input.feedback,
     scope,
-    reviewersForFullConfidence: input.reviewersForFullConfidence,
   });
   let assessment;
 
@@ -81,7 +86,6 @@ export async function evaluateReputation(
         scope,
         paymentProofVerifier: input.paymentProofVerifier,
         receiptUsageReader: input.receiptUsageReader,
-        reviewersForFullConfidence: input.reviewersForFullConfidence,
       });
       break;
     case "B3_REPUGATE":
@@ -91,7 +95,15 @@ export async function evaluateReputation(
         scope,
         paymentProofVerifier: input.paymentProofVerifier,
         receiptUsageReader: input.receiptUsageReader,
-        reviewersForFullConfidence: input.reviewersForFullConfidence,
+      });
+      break;
+    case "B3_DIRICHLET":
+      assessment = await assessB3DirichletReputation({
+        feedback: input.feedback,
+        identity: input.identity,
+        scope,
+        paymentProofVerifier: input.paymentProofVerifier,
+        receiptUsageReader: input.receiptUsageReader,
       });
       break;
   }

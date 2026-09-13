@@ -49,7 +49,6 @@ export interface EvaluateOfferInput {
   tag1?: string;
   tag2?: string;
   policy?: PolicyConfig;
-  reviewersForFullConfidence?: number;
 }
 
 function sameHex(left: string, right: string): boolean {
@@ -196,7 +195,6 @@ export async function evaluateOffer(
     policy: input.policy,
     identityMatched,
     offerRiskFlags,
-    reviewersForFullConfidence: input.reviewersForFullConfidence,
   };
   const reputation =
     input.model === "B1_RAW"

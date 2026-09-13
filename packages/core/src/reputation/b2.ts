@@ -11,6 +11,7 @@ import type { IdentitySnapshot } from "../domain/types";
 import {
   averageScoreBps,
   confidenceFromDistinctReviewers,
+  DEFAULT_MINIMUM_DISTINCT_REVIEWERS,
 } from "./fixed-point";
 import { verifyGroundedFeedback } from "./grounded-feedback";
 import type { QualityFeedbackScope } from "./quality-feedback";
@@ -21,13 +22,11 @@ export interface B2AssessmentInput {
   scope: QualityFeedbackScope;
   paymentProofVerifier: PaymentProofVerifier;
   receiptUsageReader?: ReceiptUsageReader;
-  reviewersForFullConfidence?: number;
 }
 
 export async function assessB2GroundedReputation(
   input: B2AssessmentInput,
 ): Promise<ReputationAssessment> {
-  const reviewersForFullConfidence = input.reviewersForFullConfidence ?? 5;
   const grounded = await verifyGroundedFeedback(input);
   const distinctReviewerCount = new Set(
     grounded.acceptedFeedback.map((item) => item.clientAddress.toLowerCase()),
@@ -37,7 +36,7 @@ export async function assessB2GroundedReputation(
   if (grounded.acceptedFeedback.length === 0) {
     riskFlags.push("NO_VERIFIED_FEEDBACK");
   }
-  if (distinctReviewerCount < reviewersForFullConfidence) {
+  if (distinctReviewerCount < DEFAULT_MINIMUM_DISTINCT_REVIEWERS) {
     riskFlags.push("LOW_DISTINCT_REVIEWER_COUNT");
   }
   if (grounded.invalidPaymentPresent) {
@@ -55,10 +54,7 @@ export async function assessB2GroundedReputation(
     scoreBps: averageScoreBps(
       grounded.acceptedFeedback.map((item) => item.scoreBps!),
     ),
-    confidenceBps: confidenceFromDistinctReviewers(
-      distinctReviewerCount,
-      reviewersForFullConfidence,
-    ),
+    confidenceBps: confidenceFromDistinctReviewers(distinctReviewerCount),
     distinctReviewerCount,
     acceptedFeedback: grounded.acceptedFeedback,
     rejectedFeedback: grounded.rejectedFeedback,

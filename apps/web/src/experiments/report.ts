@@ -2,7 +2,12 @@ import { z } from "zod";
 
 import generatedReport from "../data/experiment-results.generated.json";
 
-const modelSchema = z.enum(["B1_RAW", "B2_GROUNDED", "B3_REPUGATE"]);
+const modelSchema = z.enum([
+  "B1_RAW",
+  "B2_GROUNDED",
+  "B3_REPUGATE",
+  "B3_DIRICHLET",
+]);
 const scenarioSchema = z.enum([
   "honest-service",
   "ungrounded-feedback",
@@ -49,7 +54,7 @@ const reportSchema = z
       .object({
         schemaVersion: z.literal(1),
         dataset: z.literal("presentation-fixtures-v1"),
-        models: z.array(modelSchema).length(3),
+        models: z.array(modelSchema).length(4),
         scenarios: z.array(scenarioSchema).length(5),
         policy: z
           .object({
@@ -61,8 +66,8 @@ const reportSchema = z
           .strict(),
       })
       .strict(),
-    results: z.array(resultRowSchema).length(15),
-    summary: z.array(summarySchema).length(3),
+    results: z.array(resultRowSchema).length(20),
+    summary: z.array(summarySchema).length(4),
   })
   .strict();
 

@@ -55,7 +55,7 @@ RepuGate/
 │   │       ├── domain/                  # domain types and invariants
 │   │       ├── schemas/                 # cross-boundary DTO runtime schemas
 │   │       ├── canonicalization/        # offer/request/identity hashes
-│   │       ├── reputation/              # B1, B2, and B3 scoring
+│   │       ├── reputation/              # B1/B2 plus B3 Beta and Dirichlet scoring
 │   │       ├── policy/                  # ALLOW/REVIEW/BLOCK
 │   │       ├── evaluation/              # shared evaluation use case
 │   │       ├── grants/                  # pure Grant validation rules
@@ -141,7 +141,11 @@ Core types remain framework-independent:
 
 ```ts
 type Decision = "ALLOW" | "REVIEW" | "BLOCK";
-type Baseline = "B1_RAW" | "B2_GROUNDED" | "B3_REPUGATE";
+type Baseline =
+  | "B1_RAW"
+  | "B2_GROUNDED"
+  | "B3_REPUGATE"   // Beta(1,1) posterior mean
+  | "B3_DIRICHLET"; // posterior P(Good or Excellent)
 
 interface AgentReference {
   chainId: number;

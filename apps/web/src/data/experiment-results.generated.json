@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
-  "runId": "presentation-067685e2bdad",
-  "configHash": "sha256:067685e2bdad23454164a31f1039ea6f9f95b54a42c90cafa730e8f00929532a",
+  "runId": "presentation-2dd1fe75ba52",
+  "configHash": "sha256:2dd1fe75ba5250f0ff85b22388045e423a3bf305e65af9d7935853adf8340988",
   "config": {
     "schemaVersion": 1,
     "dataset": "presentation-fixtures-v1",
     "models": [
       "B1_RAW",
       "B2_GROUNDED",
-      "B3_REPUGATE"
+      "B3_REPUGATE",
+      "B3_DIRICHLET"
     ],
     "scenarios": [
       "honest-service",
@@ -18,7 +19,7 @@
       "offer-substitution"
     ],
     "policy": {
-      "version": "repugate-policy-v1",
+      "version": "repugate-policy-v2-bayesian",
       "allowScoreBps": 7000,
       "allowConfidenceBps": 6000,
       "reviewScoreBps": 5000
@@ -38,9 +39,7 @@
       "distinctReviewerCount": 3,
       "acceptedFeedbackCount": 3,
       "rejectedFeedbackCount": 0,
-      "riskFlags": [
-        "LOW_DISTINCT_REVIEWER_COUNT"
-      ],
+      "riskFlags": [],
       "offerRiskFlags": []
     },
     {
@@ -56,9 +55,7 @@
       "distinctReviewerCount": 3,
       "acceptedFeedbackCount": 3,
       "rejectedFeedbackCount": 0,
-      "riskFlags": [
-        "LOW_DISTINCT_REVIEWER_COUNT"
-      ],
+      "riskFlags": [],
       "offerRiskFlags": []
     },
     {
@@ -69,14 +66,28 @@
       "decision": "ALLOW",
       "paymentAuthorized": true,
       "rawScoreBps": 9000,
-      "verifiedScoreBps": 9000,
+      "verifiedScoreBps": 7400,
       "confidenceBps": 6000,
       "distinctReviewerCount": 3,
       "acceptedFeedbackCount": 3,
       "rejectedFeedbackCount": 0,
-      "riskFlags": [
-        "LOW_DISTINCT_REVIEWER_COUNT"
-      ],
+      "riskFlags": [],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "honest-service",
+      "scenarioTitle": "Honest paid service",
+      "scenarioKind": "CONTROL",
+      "model": "B3_DIRICHLET",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": 9000,
+      "verifiedScoreBps": 7600,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 3,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [],
       "offerRiskFlags": []
     },
     {
@@ -88,7 +99,7 @@
       "paymentAuthorized": true,
       "rawScoreBps": 10000,
       "verifiedScoreBps": null,
-      "confidenceBps": 10000,
+      "confidenceBps": 7142,
       "distinctReviewerCount": 5,
       "acceptedFeedbackCount": 5,
       "rejectedFeedbackCount": 0,
@@ -136,6 +147,26 @@
       "offerRiskFlags": []
     },
     {
+      "scenarioId": "ungrounded-feedback",
+      "scenarioTitle": "Ungrounded feedback attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B3_DIRICHLET",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 10000,
+      "verifiedScoreBps": null,
+      "confidenceBps": 0,
+      "distinctReviewerCount": 0,
+      "acceptedFeedbackCount": 0,
+      "rejectedFeedbackCount": 5,
+      "riskFlags": [
+        "NO_VERIFIED_FEEDBACK",
+        "LOW_DISTINCT_REVIEWER_COUNT",
+        "UNGROUNDED_FEEDBACK_PRESENT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
       "scenarioId": "receipt-replay",
       "scenarioTitle": "Receipt replay attack",
       "scenarioKind": "ADVERSARIAL",
@@ -144,7 +175,7 @@
       "paymentAuthorized": true,
       "rawScoreBps": 8200,
       "verifiedScoreBps": null,
-      "confidenceBps": 2000,
+      "confidenceBps": 3333,
       "distinctReviewerCount": 1,
       "acceptedFeedbackCount": 5,
       "rejectedFeedbackCount": 0,
@@ -162,7 +193,7 @@
       "paymentAuthorized": false,
       "rawScoreBps": 8200,
       "verifiedScoreBps": 1000,
-      "confidenceBps": 2000,
+      "confidenceBps": 3333,
       "distinctReviewerCount": 1,
       "acceptedFeedbackCount": 1,
       "rejectedFeedbackCount": 4,
@@ -180,8 +211,27 @@
       "decision": "BLOCK",
       "paymentAuthorized": false,
       "rawScoreBps": 8200,
-      "verifiedScoreBps": 1000,
-      "confidenceBps": 2000,
+      "verifiedScoreBps": 3667,
+      "confidenceBps": 3333,
+      "distinctReviewerCount": 1,
+      "acceptedFeedbackCount": 1,
+      "rejectedFeedbackCount": 4,
+      "riskFlags": [
+        "LOW_DISTINCT_REVIEWER_COUNT",
+        "REPLAY_ATTEMPT_PRESENT"
+      ],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "receipt-replay",
+      "scenarioTitle": "Receipt replay attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B3_DIRICHLET",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 8200,
+      "verifiedScoreBps": 2667,
+      "confidenceBps": 3333,
       "distinctReviewerCount": 1,
       "acceptedFeedbackCount": 1,
       "rejectedFeedbackCount": 4,
@@ -204,9 +254,7 @@
       "distinctReviewerCount": 3,
       "acceptedFeedbackCount": 7,
       "rejectedFeedbackCount": 0,
-      "riskFlags": [
-        "LOW_DISTINCT_REVIEWER_COUNT"
-      ],
+      "riskFlags": [],
       "offerRiskFlags": []
     },
     {
@@ -222,9 +270,7 @@
       "distinctReviewerCount": 3,
       "acceptedFeedbackCount": 7,
       "rejectedFeedbackCount": 0,
-      "riskFlags": [
-        "LOW_DISTINCT_REVIEWER_COUNT"
-      ],
+      "riskFlags": [],
       "offerRiskFlags": []
     },
     {
@@ -235,14 +281,28 @@
       "decision": "BLOCK",
       "paymentAuthorized": false,
       "rawScoreBps": 7143,
-      "verifiedScoreBps": 3333,
+      "verifiedScoreBps": 4000,
       "confidenceBps": 6000,
       "distinctReviewerCount": 3,
       "acceptedFeedbackCount": 7,
       "rejectedFeedbackCount": 0,
-      "riskFlags": [
-        "LOW_DISTINCT_REVIEWER_COUNT"
-      ],
+      "riskFlags": [],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "reviewer-concentration",
+      "scenarioTitle": "Reviewer concentration",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B3_DIRICHLET",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 7143,
+      "verifiedScoreBps": 3600,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 7,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [],
       "offerRiskFlags": []
     },
     {
@@ -258,9 +318,7 @@
       "distinctReviewerCount": 3,
       "acceptedFeedbackCount": 3,
       "rejectedFeedbackCount": 0,
-      "riskFlags": [
-        "LOW_DISTINCT_REVIEWER_COUNT"
-      ],
+      "riskFlags": [],
       "offerRiskFlags": [
         "OFFER_HASH_MISMATCH"
       ]
@@ -278,9 +336,7 @@
       "distinctReviewerCount": 3,
       "acceptedFeedbackCount": 3,
       "rejectedFeedbackCount": 0,
-      "riskFlags": [
-        "LOW_DISTINCT_REVIEWER_COUNT"
-      ],
+      "riskFlags": [],
       "offerRiskFlags": [
         "OFFER_HASH_MISMATCH"
       ]
@@ -293,14 +349,30 @@
       "decision": "BLOCK",
       "paymentAuthorized": false,
       "rawScoreBps": 9000,
-      "verifiedScoreBps": 9000,
+      "verifiedScoreBps": 7400,
       "confidenceBps": 6000,
       "distinctReviewerCount": 3,
       "acceptedFeedbackCount": 3,
       "rejectedFeedbackCount": 0,
-      "riskFlags": [
-        "LOW_DISTINCT_REVIEWER_COUNT"
-      ],
+      "riskFlags": [],
+      "offerRiskFlags": [
+        "OFFER_HASH_MISMATCH"
+      ]
+    },
+    {
+      "scenarioId": "offer-substitution",
+      "scenarioTitle": "Offer substitution attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B3_DIRICHLET",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": 9000,
+      "verifiedScoreBps": 7600,
+      "confidenceBps": 6000,
+      "distinctReviewerCount": 3,
+      "acceptedFeedbackCount": 3,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [],
       "offerRiskFlags": [
         "OFFER_HASH_MISMATCH"
       ]
@@ -323,6 +395,13 @@
     },
     {
       "model": "B3_REPUGATE",
+      "honestScenarioAllowRateBps": 10000,
+      "attackScenarioAllowRateBps": 0,
+      "attackScenariosAllowed": 0,
+      "attackScenarioCount": 4
+    },
+    {
+      "model": "B3_DIRICHLET",
       "honestScenarioAllowRateBps": 10000,
       "attackScenarioAllowRateBps": 0,
       "attackScenariosAllowed": 0,
