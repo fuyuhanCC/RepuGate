@@ -184,6 +184,44 @@ export const serviceCatalogSchema = z
 
 export type ServiceCatalogItem = z.infer<typeof serviceCatalogItemSchema>;
 
+const liveRegistryDisabledSchema = z
+  .object({
+    enabled: z.literal(false),
+    source: z.literal("disabled"),
+    fixtureMode: z.literal("available"),
+  })
+  .strict();
+
+const liveRegistryEnabledSchema = z
+  .object({
+    enabled: z.literal(true),
+    source: z.literal("live-rpc"),
+    fixtureMode: z.literal("available"),
+    model: z.literal("B1_RAW"),
+    chainId: z.number().int().positive(),
+    identityRegistry: evmAddressSchema,
+    reputationRegistry: evmAddressSchema,
+    feedbackFromBlock: unsignedIntegerStringSchema,
+    identity: identitySnapshotDtoSchema,
+    feedbackCount: z.number().int().nonnegative(),
+    rawScoreBps: z.number().int().nullable(),
+    confidenceBps: z.number().int().min(0).max(10_000),
+    distinctReviewerCount: z.number().int().nonnegative(),
+    eligibleFeedbackCount: z.number().int().nonnegative(),
+    rejectedFeedbackCount: z.number().int().nonnegative(),
+    riskFlags: z.array(reputationRiskFlagSchema),
+  })
+  .strict();
+
+export const liveRegistryResponseSchema = z.discriminatedUnion("enabled", [
+  liveRegistryDisabledSchema,
+  liveRegistryEnabledSchema,
+]);
+
+export type LiveRegistryResponse = z.infer<
+  typeof liveRegistryResponseSchema
+>;
+
 function toIdentitySnapshot(
   dto: z.infer<typeof identitySnapshotDtoSchema>,
 ): IdentitySnapshot {

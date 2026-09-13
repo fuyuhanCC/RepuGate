@@ -1,6 +1,6 @@
 # RepuGate Code Architecture
 
-> This document maps the system design in `design.md` to the current TypeScript workspace, module boundaries, interface contracts, and planned Live-mode adapters.
+> This document maps the system design in `design.md` to the current TypeScript workspace, module boundaries, interface contracts, and Live-mode adapters.
 
 ## 1. Architecture Goals
 
@@ -36,7 +36,7 @@ RepuGate/
 │   │   │   ├── routes/                 # HTTP input, schema validation, response mapping
 │   │   │   ├── application/            # API use cases and transaction boundaries
 │   │   │   ├── adapters/
-│   │   │   │   ├── erc8004/            # viem and fixture implementations
+│   │   │   │   ├── erc8004/            # optional read-only viem implementation
 │   │   │   │   ├── evidence/           # receipt/Transfer verification
 │   │   │   │   ├── persistence/        # SQLite repositories
 │   │   │   │   └── clock/              # system/fixed clock
@@ -115,6 +115,13 @@ apps/api adapters ──→ RPC / ERC-8004 / SQLite
 apps/provider Live x402 ─→ Facilitator / Base Sepolia
 packages/client ────→ MetaMask / target Provider
 ```
+
+The current API provides both adapter paths. Fixture readers remain the default
+for the Presentation. `apps/api/src/adapters/erc8004/live-reader.ts` optionally
+uses viem to read one block-consistent identity and feedback-event snapshot from
+an ERC-8004 deployment. The Live Inspector currently exposes B1 raw reputation;
+payment-proof document ingestion and EVM receipt verification remain separate
+future adapters and are not simulated in Live mode.
 
 The following rules are mandatory:
 

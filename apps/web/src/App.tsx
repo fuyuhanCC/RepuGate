@@ -27,6 +27,7 @@ import {
   DemoWallet,
 } from "./demo/demo-runtime";
 import { AttackLab } from "./experiments/AttackLab";
+import { LiveRegistryPanel } from "./live/LiveRegistryPanel";
 import {
   checkProviderHealth,
   HttpProviderFetch,
@@ -174,6 +175,24 @@ export function App() {
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      void Promise.all([checkApiHealth(), checkProviderHealth()]).then(
+        ([apiHealthy, providerHealthy]) => {
+          if (!cancelled) {
+            setApiOnline(apiHealthy && providerHealthy);
+          }
+        },
+      );
+    }, 3_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
     };
   }, []);
 
@@ -556,6 +575,8 @@ export function App() {
             </table>
           </div>
         </section>
+
+        <LiveRegistryPanel />
       </main>
 
       <footer>

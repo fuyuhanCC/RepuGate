@@ -251,10 +251,22 @@ GET  /api/payments/:paymentId
 POST /api/payments/:paymentId/reconcile
 ```
 
+Optional read-only Live inspection adds `GET /api/live/erc8004`; the fixture
+Presentation flow neither calls nor depends on this endpoint.
+
 The web application must have two modes:
 
 - **Deterministic demo mode** uses saved fixture/mock data and always remains available for the presentation.
-- **Live mode** optionally connects MetaMask and performs a Base Sepolia x402 flow.
+- **Target Live payment mode** optionally connects MetaMask and performs a Base Sepolia x402 flow.
+
+The implemented first Live slice is intentionally read-only. It resolves one
+configured ERC-8004 identity and reconstructs raw feedback and revocations from
+registry events at a shared block snapshot. The Web UI exposes this as an
+optional inspector, while deterministic fixture mode remains the default and
+never depends on RPC availability. Live B2/B3 payment grounding is fail-closed
+until untrusted feedback claims can be fetched safely and verified against EVM
+receipts; it is never replaced with simulated evidence or a silent fixture
+fallback.
 
 Experiments run through a separate command-line program and write immutable JSON/CSV artifacts to `data/results/`. The Presentation Web App bundles a generated copy of the frozen JSON and renders it read-only; experiments never share mutable Grant, payment, or replay-prevention state with the API.
 
@@ -340,6 +352,12 @@ The ERC-8004 Adapter loads feedback associated with the resolved service identit
 - `feedbackURI`
 - `feedbackHash`
 - proof-of-payment data referenced by the feedback document
+
+The current read-only Live adapter consumes the registry-owned fields through
+`NewFeedback` and `FeedbackRevoked` events only. It does not yet dereference
+arbitrary `feedbackURI` values, so proof-of-payment data is unavailable in Live
+mode and only B1 raw reputation is reported. B2 and B3 require the separate
+payment-evidence verifier described below and fail closed until it is connected.
 
 Only feedback for the explicitly supported semantic dimension is aggregated in the MVP. The default is `tag1 = quality` with a value on a documented 0-100 scale. Incomparable tags such as latency, uptime, revenue, and quality are not averaged together.
 

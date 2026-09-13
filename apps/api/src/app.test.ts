@@ -1,8 +1,15 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import {
+  deriveIdentityEpoch,
+  normalizeFeedbackRecord,
+  type Address,
+} from "@repugate/core";
 import type { FastifyInstance } from "fastify";
 
+import { LiveErc8004Error } from "./adapters/erc8004/live-reader";
 import { buildApp } from "./app";
+import type { LiveErc8004Runtime } from "./config/live-erc8004";
 
 const BUYER = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
@@ -67,6 +74,71 @@ function createApp(): FastifyInstance {
   return app;
 }
 
+function createLiveRuntime(options: { fail?: boolean } = {}): LiveErc8004Runtime {
+  const identityRegistry =
+    "0x8004A818BFB912233c491871b3d84c89A494BD9e" as Address;
+  const reputationRegistry =
+    "0x8004B663056A597Dffe9eCcC1965A193B7388713" as Address;
+  const endpoint = "https://agent.example/services/inference";
+  const reference = {
+    chainId: 84_532,
+    registry: identityRegistry,
+    agentId: 12n,
+  };
+  const agentInput = {
+    chainId: reference.chainId,
+    registry: reference.registry,
+    agentId: reference.agentId.toString(),
+  };
+  const identity = deriveIdentityEpoch({
+    agent: agentInput,
+    owner: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    agentWallet: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    registeredEndpoint: endpoint,
+    agentUriHash: `0x${"11".repeat(32)}`,
+    observedAtBlock: "500",
+  });
+  const feedback = normalizeFeedbackRecord({
+    agent: agentInput,
+    clientAddress: "0x1111111111111111111111111111111111111111",
+    feedbackIndex: "1",
+    value: "90",
+    valueDecimals: 0,
+    tag1: "quality",
+    tag2: "inference",
+    endpoint,
+    isRevoked: false,
+    observedAtBlock: "490",
+  });
+
+  return {
+    config: {
+      chainId: reference.chainId,
+      identityRegistry,
+      reputationRegistry,
+      serviceEndpoint: endpoint,
+      feedbackFromBlock: 100n,
+    },
+    reference,
+    createReader() {
+      return {
+        async resolve() {
+          if (options.fail === true) {
+            throw new LiveErc8004Error(
+              "CHAIN_MISMATCH",
+              "RPC reports the wrong chain",
+            );
+          }
+          return identity;
+        },
+        async listQualityFeedback() {
+          return [feedback];
+        },
+      };
+    },
+  };
+}
+
 async function getService(
   instance: FastifyInstance,
   id: string,
@@ -99,6 +171,65 @@ describe("service catalog", () => {
     const service = await getService(instance, "reviewer-concentration");
 
     expect(service.offer.amount).toBe("10000");
+  });
+});
+
+describe("live ERC-8004 endpoint", () => {
+  it("keeps live mode disabled while deterministic fixtures remain available", async () => {
+    const instance = createApp();
+    const response = await instance.inject({
+      method: "GET",
+      url: "/api/live/erc8004",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      enabled: false,
+      source: "disabled",
+      fixtureMode: "available",
+    });
+    expect(await getService(instance, "honest-service")).toBeDefined();
+  });
+
+  it("labels live data as B1 and keeps the fixture catalog available", async () => {
+    app = buildApp({
+      databasePath: ":memory:",
+      liveErc8004: createLiveRuntime(),
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/live/erc8004",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      enabled: true,
+      source: "live-rpc",
+      fixtureMode: "available",
+      model: "B1_RAW",
+      rawScoreBps: 9_000,
+      feedbackCount: 1,
+      eligibleFeedbackCount: 1,
+    });
+    expect(await getService(app, "honest-service")).toBeDefined();
+  });
+
+  it("fails a live lookup explicitly without falling back to fixture data", async () => {
+    app = buildApp({
+      databasePath: ":memory:",
+      liveErc8004: createLiveRuntime({ fail: true }),
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/live/erc8004",
+    });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toMatchObject({
+      code: "LIVE_ERC8004_CHAIN_MISMATCH",
+      retryable: true,
+    });
+    expect(await getService(app, "honest-service")).toBeDefined();
   });
 });
 

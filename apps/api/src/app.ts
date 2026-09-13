@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 
 import {
+  assessB1RawReputation,
   canonicalizeOffer,
   createDeterministicScenario,
   DETERMINISTIC_SCENARIO_IDS,
@@ -18,6 +19,7 @@ import type { FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 
 import { ApplicationError } from "./application/errors";
+import { LiveErc8004Error } from "./adapters/erc8004/live-reader";
 import type {
   ClientPaymentEventRequest,
   ConsumeGrantRequest,
@@ -25,6 +27,7 @@ import type {
   IdGenerator,
 } from "./application/service";
 import { RepuGateService } from "./application/service";
+import type { LiveErc8004Runtime } from "./config/live-erc8004";
 import { ApiDatabase } from "./database/database";
 import {
   clientPaymentEventRequestSchema,
@@ -40,6 +43,7 @@ export interface BuildAppOptions {
   databasePath?: string;
   grantLifetimeSeconds?: number;
   idGenerator?: IdGenerator;
+  liveErc8004?: LiveErc8004Runtime;
   logger?: boolean;
   now?: () => number;
 }
@@ -105,6 +109,14 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       });
     }
 
+    if (error instanceof LiveErc8004Error) {
+      return reply.status(502).send({
+        code: `LIVE_ERC8004_${error.code}`,
+        message: error.message,
+        retryable: true,
+      });
+    }
+
     if (
       error instanceof OfferCanonicalizationError ||
       error instanceof HttpUrlCanonicalizationError
@@ -125,6 +137,50 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   });
 
   app.get("/health", async () => ({ status: "ok" }));
+
+  app.get("/api/live/erc8004", async () => {
+    if (options.liveErc8004 === undefined) {
+      return {
+        enabled: false,
+        source: "disabled",
+        fixtureMode: "available",
+      };
+    }
+
+    const reader = options.liveErc8004.createReader();
+    const identity = await reader.resolve(options.liveErc8004.reference);
+    const feedback = await reader.listQualityFeedback(
+      options.liveErc8004.reference,
+    );
+    const assessment = assessB1RawReputation({
+      feedback,
+      scope: {
+        agent: identity.agent,
+        endpoint: identity.registeredEndpoint,
+        tag1: "quality",
+      },
+    });
+
+    return toJsonCompatible({
+      enabled: true,
+      source: "live-rpc",
+      fixtureMode: "available",
+      model: "B1_RAW",
+      chainId: options.liveErc8004.config.chainId,
+      identityRegistry: options.liveErc8004.config.identityRegistry,
+      reputationRegistry: options.liveErc8004.config.reputationRegistry,
+      feedbackFromBlock:
+        options.liveErc8004.config.feedbackFromBlock.toString(),
+      identity,
+      feedbackCount: feedback.length,
+      rawScoreBps: assessment.scoreBps,
+      confidenceBps: assessment.confidenceBps,
+      distinctReviewerCount: assessment.distinctReviewerCount,
+      eligibleFeedbackCount: assessment.acceptedFeedback.length,
+      rejectedFeedbackCount: assessment.rejectedFeedback.length,
+      riskFlags: assessment.riskFlags,
+    });
+  });
 
   app.get("/api/services", async () => {
     return {

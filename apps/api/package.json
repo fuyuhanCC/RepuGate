@@ -12,6 +12,7 @@
   "dependencies": {
     "@repugate/core": "workspace:*",
     "fastify": "^5.12.4",
+    "viem": "^2.56.3",
     "zod": "^4.6.2"
   },
   "devDependencies": {

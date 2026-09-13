@@ -8,10 +8,12 @@ import type {
 } from "@repugate/client";
 
 import {
+  liveRegistryResponseSchema,
   parseEvaluationResponse,
   parsePaymentResponse,
   serviceCatalogSchema,
   type ServiceCatalogItem,
+  type LiveRegistryResponse,
 } from "./dto";
 
 interface ApiErrorBody {
@@ -72,6 +74,11 @@ export async function checkApiHealth(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function loadLiveRegistry(): Promise<LiveRegistryResponse> {
+  const body = await requestJson("/api/live/erc8004");
+  return liveRegistryResponseSchema.parse(body);
 }
 
 export class HttpEvaluationApi implements EvaluationApiPort {

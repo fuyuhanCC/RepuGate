@@ -108,7 +108,7 @@ main { margin: 0 auto; max-width: 1480px; padding: 0 clamp(24px, 5vw, 72px) 100p
 .hero-protocol { align-items: center; color: var(--muted); display: flex; flex-wrap: wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; gap: 13px; letter-spacing: 0.09em; position: relative; text-transform: uppercase; z-index: 1; }
 .hero-protocol i { background: var(--green-strong); border-radius: 50%; height: 3px; width: 3px; }
 
-.console, .flow-section, .attack-lab, .runs-section { border-top: 1px solid var(--line); padding: 44px 0 56px; }
+.console, .flow-section, .attack-lab, .runs-section, .live-registry { border-top: 1px solid var(--line); padding: 44px 0 56px; }
 .section-heading { align-items: end; display: flex; justify-content: space-between; margin-bottom: 28px; }
 .section-heading.compact { margin-bottom: 31px; }
 .section-heading h2 { font-size: clamp(25px, 3vw, 38px); font-weight: 530; letter-spacing: -0.04em; margin: 7px 0 0; }
@@ -232,6 +232,29 @@ main { margin: 0 auto; max-width: 1480px; padding: 0 clamp(24px, 5vw, 72px) 100p
 .table-decision.allow { color: var(--green); }
 .table-decision.block, .table-decision.review { color: var(--red); }
 
+.live-registry { padding-top: 51px; }
+.live-registry-shell { background: rgba(11, 24, 20, 0.76); border: 1px solid var(--line); padding: 26px; }
+.live-registry-action { align-items: center; display: flex; gap: 28px; justify-content: space-between; }
+.live-registry-action > div { display: flex; flex-direction: column; gap: 7px; }
+.live-registry-action strong { font-size: 18px; font-weight: 560; }
+.live-registry-action small, .live-disabled, .live-note { color: var(--muted); font-size: 11px; line-height: 1.6; }
+.live-kicker { color: var(--green-strong); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
+.live-registry-action button { background: transparent; border: 1px solid rgba(165, 242, 199, 0.42); color: var(--green); cursor: pointer; font-size: 11px; min-width: 190px; padding: 14px 17px; }
+.live-registry-action button:disabled { cursor: wait; opacity: 0.5; }
+.live-disabled { border: 1px dashed var(--line); margin-top: 22px; padding: 20px; }
+.live-stats { border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 24px; }
+.live-stats article { border-right: 1px solid var(--line); padding: 22px; }
+.live-stats article:last-child { border-right: 0; }
+.live-stats span { color: var(--muted); display: block; font-size: 9px; text-transform: uppercase; }
+.live-stats strong { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 25px; font-weight: 500; margin-top: 10px; }
+.live-stats small { color: var(--muted-2); display: block; font-size: 9px; margin-top: 8px; }
+.live-identity { display: grid; grid-template-columns: repeat(2, 1fr); margin: 18px 0 0; }
+.live-identity div { align-items: center; border-bottom: 1px solid var(--line); display: flex; gap: 18px; justify-content: space-between; min-width: 0; padding: 13px 16px; }
+.live-identity dt { color: var(--muted); font-size: 10px; }
+.live-identity dd { color: #bad0c7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; margin: 0; max-width: 68%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-identity a { color: var(--green); }
+.live-note { border-left: 2px solid var(--amber); margin: 21px 0 0; padding-left: 14px; }
+
 footer { border-top: 1px solid var(--line); color: var(--muted-2); display: flex; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; justify-content: space-between; letter-spacing: 0.07em; margin: 0 clamp(24px, 5vw, 72px); padding: 24px 0 35px; text-transform: uppercase; }
 
 @media (max-width: 1050px) {
@@ -265,6 +288,11 @@ footer { border-top: 1px solid var(--line); color: var(--muted-2); display: flex
   .flow-track { grid-template-columns: repeat(2, 1fr); }
   .detail-grid { grid-template-columns: 1fr; }
   .experiment-provenance { align-items: flex-start; }
+  .live-registry-action { align-items: stretch; flex-direction: column; }
+  .live-registry-action button { width: 100%; }
+  .live-stats, .live-identity { grid-template-columns: 1fr; }
+  .live-stats article { border-bottom: 1px solid var(--line); border-right: 0; }
+  .live-stats article:last-child { border-bottom: 0; }
   .run-meta { flex-wrap: wrap; }
   footer { flex-direction: column; gap: 9px; margin-left: 20px; margin-right: 20px; }
 }

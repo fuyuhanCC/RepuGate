@@ -251,10 +251,19 @@ GET  /api/payments/:paymentId
 POST /api/payments/:paymentId/reconcile
 ```
 
+可选的只读 Live 检查功能增加 `GET /api/live/erc8004`；fixture Presentation
+流程不会调用或依赖这个接口。
+
 前端提供两种模式：
 
 - **确定性 Demo 模式**：使用保存的 fixture/mock 数据，保证 Presentation 现场始终可运行。
-- **Live 模式**：可选连接 MetaMask，执行 Base Sepolia x402 流程。
+- **目标 Live 付款模式**：可选连接 MetaMask，执行 Base Sepolia x402 流程。
+
+当前实现的第一阶段 Live 能力有意限定为只读：它解析一个配置好的 ERC-8004
+身份，并在同一 block snapshot 下从 Registry 事件重建原始评价和撤销记录。
+前端把它作为可选 Inspector 提供；确定性 fixture 模式仍是默认路径，且完全不
+依赖 RPC 可用性。在能够安全读取不可信评价声明并用 EVM receipt 独立验证之前，
+Live B2/B3 的付款依据会 fail closed，不会用模拟证据或静默切换 fixture 代替。
 
 实验由独立命令行程序运行，并把不可变的 JSON/CSV 结果写入 `data/results/`。前端展示平台打包生成后的冻结 JSON 并只读展示；实验不会与 API 共用可变的 Grant、付款或防重放状态。
 
@@ -340,6 +349,11 @@ ERC-8004 Adapter 加载与目标服务身份有关的评价。系统可能使用
 - `feedbackURI`
 - `feedbackHash`
 - 评价文件中的付款证明
+
+当前只读 Live Adapter 只通过 `NewFeedback` 和 `FeedbackRevoked` 事件使用
+Registry 自身记录的字段。它暂时不会访问任意 `feedbackURI`，因此 Live 模式
+还没有可验证的付款证明，只报告 B1 原始声誉。B2 和 B3 必须依赖下一节所述的
+独立付款证据验证器；在验证器接入前一律 fail closed。
 
 MVP 只聚合明确支持的同一语义维度。默认使用 `tag1 = quality`，并规定数值范围为 0–100。延迟、uptime、收入和质量等不同含义的数据不能直接平均。
 

@@ -23,6 +23,9 @@ importers:
       fastify:
         specifier: ^5.12.4
         version: 5.12.4
+      viem:
+        specifier: ^2.56.3
+        version: 2.56.3(typescript@7.0.2)(zod@4.6.2)
       zod:
         specifier: ^4.6.2
         version: 4.6.2
