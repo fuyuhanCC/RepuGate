@@ -490,34 +490,183 @@ Each assessment stores enough information for explanation and evaluation:
 
 ## 8. Reputation Models and Baselines
 
+The baselines compare how reputation evidence changes the payment decision.
+They must be separated from RepuGate's shared payment controls. B1, B2, and B3
+all run inside the same pipeline, which independently checks the canonical
+offer, identity binding, user budget, Wallet chain, one-use Grant, redirect
+policy, and payment state. Therefore, an offer-substitution result shared by
+B1/B2/B3 demonstrates the common gateway, not a superior B3 scoring formula.
+
 ### B0: No Gate (Reference Baseline, Not Yet Implemented)
 
-The Agent authorizes every valid x402 payment request without evaluating service reputation.
-It remains a target baseline for the expanded report experiment; the current
-Presentation runner executes B1, B2, and B3 only.
+**Purpose.** B0 measures what happens when the Buyer uses x402 payment-protocol
+checks but no ERC-8004 trust decision.
+
+**Input and calculation.** B0 reads no identity or feedback, calculates no
+score or confidence, and performs no evidence verification. For a fair future
+implementation it should retain basic protocol controls—runtime schema parsing,
+supported scheme/network/asset selection, budget and timeout caps, and Wallet
+chain matching—but skip reputation evaluation and reputation-bound Grant
+issuance.
+
+**Decision.** A syntactically valid offer inside the Buyer's configured payment
+limits is paid. A Provider with no reputation or actively manipulated
+reputation is treated exactly like an honest Provider.
+
+**Attack coverage.** B0 can reject malformed or unsupported payment requests
+and over-budget offers through the protocol layer. It does not address
+ungrounded feedback, receipt replay, reviewer concentration, paid Sybil
+self-review, collusion, identity whitewashing, or service trustworthiness. It
+also has no reputation decision to bind to a one-use EvaluationGrant.
+
+**Implementation status.** B0 remains a target baseline for the expanded report
+experiment. The current Presentation runner executes B1, B2, and B3 only.
 
 ### B1: Raw ERC-8004 Reputation
 
-All submitted, non-revoked feedback in the supported `quality` dimension is aggregated without requiring proof of interaction. Reviewer diversity is reported as a diagnostic but does not gate payment.
+**Purpose.** B1 represents the naive use of raw ERC-8004 reputation and shows
+why the existence of onchain feedback is not itself proof of a real service
+interaction.
+
+**Input validation.** B1 keeps feedback only when it refers to the selected
+Agent, is not revoked, matches the configured `quality`/service tags and
+registered endpoint, and contains a score in the supported 0–100 range. It does
+not require proof of payment.
+
+**Score.** Each accepted feedback record has equal weight:
+
+```text
+B1 score = arithmetic mean of all accepted raw feedback scores
+```
+
+Distinct reviewer count and `confidence` are reported as diagnostics, but the
+B1 policy does not use confidence to gate payment.
+
+**Attack coverage.** B1 removes revoked, malformed, wrong-Agent, wrong-tag, and
+wrong-endpoint feedback. It does not stop an attacker from creating ungrounded
+ratings, attaching one receipt to many ratings, submitting many ratings from
+one address, or distributing ratings across Sybil wallets. In the fixed
+fixtures, B1 allows ungrounded feedback, receipt replay, and reviewer
+concentration. Offer mismatch is blocked only by the shared exact-offer gate.
 
 ### B2: Payment-Grounded Reputation
 
-Only feedback with a valid, unique, service-bound payment receipt contributes to the score. Every accepted feedback record has equal weight. Reviewer diversity is reported for comparison but does not gate payment.
+**Purpose.** B2 asks whether each rating can be grounded in one real, unique,
+service-bound payment before the rating affects reputation.
+
+**Evidence checks.** B2 starts with the same scoped feedback as B1, then accepts
+a record only when all of the following hold:
+
+- a payment proof exists and the verifier returns a valid receipt
+- claimed chain, transaction hash, log index, payer, recipient, and optional
+  authorization nonce match the verified evidence
+- the receipt payer equals the ERC-8004 feedback `clientAddress`
+- the recipient equals the service identity's `agentWallet`
+- the payment belongs to the current Identity Epoch
+- settlement occurred no later than the feedback observation block
+- the verified amount is positive
+- neither receipt key nor authorization nonce was claimed by another feedback
+  record in the current batch or by the injected receipt-use reader
+
+**Score.** Every accepted payment-grounded feedback record still has equal
+weight:
+
+```text
+B2 score = arithmetic mean of all accepted payment-grounded record scores
+```
+
+Reviewer diversity and confidence remain diagnostic and do not gate B2.
+
+**Attack coverage.** B2 addresses feedback without payment, invalid or
+mismatched payment proofs, receipt/nonce replay, wrong-payer reviews,
+wrong-recipient payments, payments bound to another Identity Epoch, and
+cross-service reuse when the service identity/recipient binding differs. It
+does not stop one reviewer from making many unique valid payments and thereby
+creating many equal-weight ratings. It also does not prove that different
+wallets are independent, so funded Sybil wallets, self-payments, and collusion
+remain possible. In the fixed fixtures, B2 blocks ungrounded feedback and
+receipt replay but allows reviewer concentration.
 
 ### B3: RepuGate Prototype
 
-B3 uses the same payment-grounded evidence as B2, then limits repeated influence by first averaging each reviewer's accepted records. It calculates confidence from the number of distinct verified reviewers and requires both score and confidence to meet the `ALLOW` policy. The current prototype implements:
+**Purpose.** B3 adds influence capping and a cold-start confidence gate to B2,
+so repeated valid payments from one address cannot dominate the automatic
+payment decision.
+
+**Evidence checks.** B3 accepts exactly the same payment-grounded records as B2.
+
+**Score.** B3 groups accepted records by case-insensitive reviewer address,
+averages each reviewer's records, and then gives every reviewer one equal vote:
+
+```text
+reviewerScore(r) = mean(scores submitted by reviewer r)
+B3 score         = mean(reviewerScore(r) for each distinct reviewer r)
+confidence       = min(distinct verified reviewers / 5, 1)
+```
+
+Five ratings from one reviewer therefore have the same aggregate influence as
+one rating from that reviewer. B3 requires both score and confidence to meet the
+`ALLOW` policy. The current prototype implements:
 
 - verified-interaction filtering inherited from B2
 - reviewer diversity
 - per-reviewer influence capping through reviewer-level aggregation
 - a minimum distinct-reviewer confidence gate
 
-Time decay, burst detection, common funding-source analysis, and service-identity age are explicitly future work rather than implemented claims.
+**Attack coverage.** B3 inherits all B2 protections and additionally reduces
+same-wallet reviewer-concentration attacks, even when each repeated rating has
+a unique valid payment. The confidence gate prevents a high score from a very
+small number of verified reviewers from being automatically accepted. In the
+fixed concentration fixture, B2 computes `(5×100 + 2×0) / 7 = 71.43%` and
+allows payment, while B3 computes `(100 + 0 + 0) / 3 = 33.33%` and blocks it.
 
-The project must not claim full Sybil resistance. A malicious provider can fund multiple wallets and make real payments to itself. Payment grounding creates stronger evidence and prevents zero-cost feedback and receipt reuse, but does not prove reviewer independence or honesty.
+**Limitations.** B3 is not full Sybil resistance. An attacker can fund multiple
+wallets, make real payments, and make those wallets appear as distinct
+reviewers. B3 also does not currently detect common funding sources, colluding
+reviewers, feedback bursts, identity whitewashing, or dishonest reviews after
+a genuine payment. Time decay, burst detection, common funding-source analysis,
+and service-identity age are explicitly future work rather than implemented
+claims.
 
-Payment amount is not weighted linearly: a provider can recover most funds from self-payments and would otherwise be able to buy reputation cheaply. The current prototype uses distinct verified payers and capped per-reviewer influence as risk indicators rather than proofs of independent users; transaction timing and funding concentration remain future extensions.
+**Weighting rationale.** Payment amount is not weighted linearly: a Provider
+can recover most funds from self-payments and would otherwise be able to buy
+reputation cheaply. The current prototype uses distinct verified payers and
+capped per-reviewer influence as risk indicators rather than proofs of
+independent users; transaction timing and funding concentration remain future
+extensions.
+
+### Attack Coverage Summary
+
+`✓` means the model directly addresses the attack, `partial` means it raises the
+cost or covers only a constrained form, and `✗` means it does not address it.
+Shared gateway controls are shown separately because they are not reputation
+algorithm improvements.
+
+| Attack or failure | B0 | B1 | B2 | B3 | Reason |
+| --- | --- | --- | --- | --- | --- |
+| Malformed, revoked, wrong-Agent/tag/endpoint feedback | N/A | ✓ | ✓ | ✓ | B1 scope filtering is inherited by B2/B3 |
+| High ratings without payment | ✗ | ✗ | ✓ | ✓ | B2/B3 require verified payment evidence |
+| One receipt or authorization nonce reused | ✗ | ✗ | ✓ | ✓ | B2/B3 enforce receipt and nonce uniqueness |
+| Wrong payer, recipient, or Identity Epoch | ✗ | ✗ | ✓ | ✓ | B2/B3 bind evidence to reviewer and service identity |
+| Many unique paid ratings from one wallet | ✗ | ✗ | ✗ | ✓ | B3 gives each reviewer one aggregate vote |
+| High score from too few reviewers | ✗ | ✗ | ✗ | ✓ | Only B3 uses confidence as an ALLOW gate |
+| Many funded Sybil wallets with real payments | ✗ | ✗ | ✗ | partial | Payment raises cost, but wallet independence is not proven |
+| Colluding reviewers or dishonest genuine customers | ✗ | ✗ | ✗ | ✗ | Payment evidence does not prove review honesty |
+| Offer/recipient/endpoint substitution | ✗ | shared gate | shared gate | shared gate | Canonical offer and identity checks, not reputation scoring |
+| EvaluationGrant replay or altered authorization | N/A | shared gate | shared gate | shared gate | One-use Grant and field-by-field intent recheck |
+
+### Current Deterministic Fixture Outcomes
+
+This table maps the implemented attack fixtures to the frozen decision policy.
+B0 is omitted because it is not implemented in the runner.
+
+| Fixture | B1 | B2 | B3 | Main reason |
+| --- | --- | --- | --- | --- |
+| Honest | ALLOW | ALLOW | ALLOW | Valid, diverse, payment-grounded feedback |
+| Ungrounded ratings | ALLOW | BLOCK | BLOCK | B1 accepts ratings without payment proof; B2/B3 reject them |
+| Receipt replay | ALLOW | BLOCK | BLOCK | B2/B3 admit only one rating for the reused receipt |
+| Reviewer concentration | ALLOW | ALLOW | BLOCK | B3 removes same-wallet multiplicity and then fails its score/confidence gate |
+| Expected-offer mismatch | BLOCK | BLOCK | BLOCK | The common canonical-offer gate blocks before payment, independently of reputation score |
 
 ### Current Decision Policy
 
