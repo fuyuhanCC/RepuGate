@@ -1118,7 +1118,7 @@ RepuGate/
 
 依赖方向固定为 `web -> client -> {core, x402}`、`api -> core`、`experiments -> core` 和 `provider -> {core, x402}`。`core` 不依赖 React、HTTP、SQLite 或任何应用目录；Provider 在运行时保持独立。领域 DTO 与规则放在 `core`，x402 wire 常量、Schema 和 payload 类型放在职责窄化的 `packages/x402` 协议包，而不是通用 `shared` package。更具体的文件职责、接口和调用契约见 [`code-architecture.zh-CN.md`](./code-architecture.zh-CN.md)。
 
-## 15. 推迟或移除的组件
+## 15. 未来工作与范围边界
 
 ### 15.1 未来声誉模型扩展
 
@@ -1145,7 +1145,7 @@ RepuGate/
 原样沿用当前 `n/(n+2)` confidence；加权证据需要明确使用 `sum(w_r)` 等有效证据质量，
 或有效样本量估计，并重新校准门槛。这些扩展尚未实现，也不属于当前安全性结论。
 
-### 15.2 其他推迟组件
+### 15.2 当前范围外的组件
 
 初始设计明确排除以下内容：
 

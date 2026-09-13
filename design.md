@@ -1200,7 +1200,7 @@ This is a logical structure, not a requirement to create every file at project s
 
 The fixed dependency direction is `web -> client -> {core, x402}`, `api -> core`, `experiments -> core`, and `provider -> {core, x402}`. `core` does not depend on React, HTTP, SQLite, or an application directory, and the Provider remains operationally independent. Domain DTOs and rules live in `core`; x402 wire constants, schemas, and payload types live in the narrowly scoped `packages/x402` protocol package rather than a generic shared package. See [`code-architecture.md`](./code-architecture.md) for concrete file responsibilities, interfaces, and call contracts.
 
-## 15. Deferred or Removed Components
+## 15. Future Work and Scope Boundaries
 
 ### 15.1 Future Reputation Extensions
 
@@ -1237,7 +1237,7 @@ for example `sum(w_r)`, or an effective sample-size estimator, together with
 new calibration. These extensions are not implemented and are not part of the
 current security claims.
 
-### 15.2 Other Deferred Components
+### 15.2 Current Out-of-Scope Components
 
 The following components are intentionally excluded from the initial design:
 
