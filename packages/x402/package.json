@@ -1,5 +1,5 @@
 {
-  "name": "@repugate/client",
+  "name": "@repugate/x402",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@repugate/core": "workspace:*",
-    "@repugate/x402": "workspace:*",
     "zod": "^4.6.2"
   }
 }

@@ -1,4 +1,14 @@
 export {
+  decodeX402Header,
+  encodeX402Header,
+  X402HeaderError,
+} from "./codec";
+export {
+  PAYMENT_REQUIRED_HEADER,
+  PAYMENT_RESPONSE_HEADER,
+  PAYMENT_SIGNATURE_HEADER,
+} from "./headers";
+export {
   exactEvmPaymentRequirementsSchema,
   extensionEntrySchema,
   extensionsSchema,
@@ -9,7 +19,7 @@ export {
   resourceInfoSchema,
   settlementResponseSchema,
   signedEvmAuthorizationSchema,
-} from "@repugate/x402";
+} from "./schemas";
 export type {
   ExactEvmPaymentRequirements,
   PaymentPayload,
@@ -19,4 +29,4 @@ export type {
   ResourceInfo,
   SettlementResponse,
   SignedEvmAuthorization,
-} from "@repugate/x402";
+} from "./schemas";

@@ -44,7 +44,7 @@ BLOCK     Agent 不应授权付款
 
 2. **RepuGate 不保存私钥**
 
-   钱包签名始终在 MetaMask 或其他钱包服务内部完成。RepuGate 只在 `ALLOW` 后提供范围受限的付款请求，永远不接收私钥。
+   签名始终保留在所选 `WalletPort` 内。确定性模式使用不含真实私钥的 FakeWallet，Live 模式再使用 MetaMask。RepuGate 只在 `ALLOW` 后提供范围受限的付款请求，永远不接收私钥。
 
 3. **先验证证据，再计算分数**
 
@@ -169,7 +169,7 @@ Adapter 将外部数据转换成 Core 可以处理的标准化输入：
 
 - **前端展示平台**：包含 Buyer Agent、Agent Console、钱包连接、`trustedFetch()`、门控付款客户端和可视化页面
 - **RepuGate Evaluation API**：解析身份、验证证据、执行策略、签发一次性 Grant，并核对不确定的结算
-- **Demo Provider**：提供可以切换诚实、故障或恶意行为的 x402 endpoint
+- **独立 Demo Provider**：作为单独 HTTP 进程运行，提供可以切换诚实或恶意行为的 x402 endpoint
 - **Experiment Runner**：生成评价和攻击场景，运行基线并保存实验结果
 
 前端展示平台是项目的必要组成部分，但它只服务于系统演示和实验结果展示，不扩展成生产级管理后台。
@@ -209,14 +209,15 @@ Evaluation API 返回决策和一次性 EvaluationGrant
       ↓
 GuardedPaymentClient 复核 Grant、报价哈希、身份和策略
       ↓
-只有在 ALLOW 后，MetaMask 才签署准确的付款授权
+只有在 ALLOW 后，WalletPort 才签署准确的付款授权
+（确定性模式使用 FakeWallet；Live 模式使用 MetaMask）
       ↓
 客户端重新提交 x402 请求，并通过 paymentId 跟踪结算
 ```
 
 该设计不需要代理所有请求和响应内容，可以减少隐私暴露，让私钥留在钱包中，同时避免与研究问题无关的 HTTP 转发复杂度。
 
-在浏览器演示中，`trustedFetch()` 调用一个轻量的本地 RepuGate Evaluation API。该 API 提供 Core 评估、一次性 Grant、结算核对和实验数据，但不代理目标 API 流量。浏览器直接与 x402 服务和钱包通信。
+在浏览器演示中，`trustedFetch()` 调用轻量的本地 RepuGate Evaluation API。该 API 提供 Core 评估、一次性 Grant 和付款状态处理，但不代理目标 API 流量。冻结实验 JSON 由前端只读打包；浏览器通过开发反向代理访问独立 x402 Provider，并使用配置的 WalletPort。
 
 报价选择必须由 RepuGate 控制，不能交给可能在评估后自行选择其他 `accepts[]` 项的黑盒自动付款封装。项目使用较底层的 x402 客户端流程或显式 selector hook，保证在请求签名前已经知道最终选择的付款要求。
 
@@ -489,9 +490,10 @@ Evaluation API 是 `payment_attempts` 的唯一持久化写入方。浏览器通
 
 ## 8. 声誉模型与实验基线
 
-### B0：No Gate
+### B0：No Gate（参考基线，尚未实现）
 
 Agent 不评估服务声誉，直接授权所有格式有效的 x402 付款请求。
+它仍是扩展版报告实验的目标基线；当前 Presentation runner 只运行 B1、B2 和 B3。
 
 ### B1：Raw ERC-8004 Reputation
 
@@ -501,7 +503,7 @@ Agent 不评估服务声誉，直接授权所有格式有效的 x402 付款请�
 
 只有具有有效、唯一且与目标服务绑定的付款凭证的评价才能影响分数。每条通过验证的评价具有相同权重；系统会展示评价者多样性用于比较，但不使用它阻止付款。
 
-### B3：Full RepuGate
+### B3：RepuGate 当前原型
 
 B3 使用与 B2 相同的付款验证证据，然后先对每个评价者的多条评价取平均，限制单一评价者的重复影响。它根据不同有效付款评价者数量计算置信度，并要求分数和置信度同时达到 `ALLOW` 门槛。当前原型已经实现：
 
@@ -515,6 +517,23 @@ B3 使用与 B2 相同的付款验证证据，然后先对每个评价者的多�
 项目不能声称完全抵御 Sybil 攻击。恶意服务可以创建多个钱包，再让这些钱包向自己进行真实付款。付款凭证可以提供更强的交互证据，防止零成本评价和凭证重用，但不能证明评价者彼此独立或评价内容诚实。
 
 付款金额不能线性增加评价权重，因为 Provider 可以通过自付款收回大部分资金，从而低成本购买声誉。当前原型把不同有效付款人数量和单一评价者权重上限作为风险信号，而不是独立用户的证明；交易时间分布和资金集中度仍属于未来扩展。
+
+### 当前决策策略
+
+实现与 Presentation 实验冻结使用的 `repugate-policy-v1` 参数为：
+
+```text
+ALLOW 分数门槛           70%（7,000 bps）
+REVIEW 分数门槛          50%（5,000 bps）
+B3 ALLOW 置信度门槛      60%（6,000 bps）
+达到满置信度的评价者数    5
+confidence               min(不同有效付款评价者数 / 5, 1)
+```
+
+B1 和 B2 只使用分数门槛，confidence 仅作为诊断信息；B3 必须同时满足分数和
+confidence 才能 `ALLOW`。分数达到 70% 但 B3 置信度不足时返回 `REVIEW`，分数
+低于 50% 时返回 `BLOCK`。对于三个已实现模型，任何身份或准确报价绑定失败都会
+直接 `BLOCK`。这些策略参数会被包含在 `policyHash` 中。
 
 ## 9. 威胁模型
 
@@ -562,7 +581,7 @@ Buyer Agent 可能因为模型错误或 prompt injection 产生错误付款意�
 - 固定版本的 ERC-8004 合约按照源代码运行
 - 已最终确认的区块链状态正确
 - 所使用的 RPC 能返回正确链上数据
-- x402 付款签名和结算能够被正确验证
+- Live 模式依赖所选 x402 facilitator 和链上 adapter 正确验证签名与结算；确定性模式只进行结构校验和模拟 settlement
 - 标准密码学原语保持安全
 - 不可信 JavaScript 不能在前端展示平台的可信 origin 中执行
 
@@ -646,40 +665,50 @@ SQLite 足以支持课程原型。数据库只保存派生数据和本地状态�
 - **RQ4**：RepuGate 会引入多少延迟、RPC 和 Gas 开销？
 - **RQ5**：报价绑定 Grant 和幂等结算核对能否阻止报价替换和失败重试中的重复付款？
 
+当前确定性 Presentation fixtures 直接验证 RQ1、RQ2 和 RQ5 中的准确报价绑定部分。
+RQ3、RQ4 以及重试行为的统计测量仍属于最终报告规模的实验工作。
+
 ### 12.2 攻击场景
 
-Presentation 原型必须实现：
+当前 Presentation experiment runner 实现了四个固定对抗性 fixture：
 
 1. 没有付款的虚假评价
 2. 付款凭证重复使用
-3. 跨服务使用付款凭证
-4. `ALLOW` 后替换报价
-5. 结算超时后的重复付款尝试
+3. 评价者集中
+4. Provider 报价金额与可信 catalog 中预期报价不一致
 
-后续实验可以实现：
+第四个 fixture 是在评估阶段发现的预期报价不匹配；它并不声称独立 Provider
+在已经得到 `ALLOW` 后再次修改了报价。提交后网络状态不确定和一次性 Grant
+行为已有确定性 Client/API 测试，但尚未汇总为实验结果行。
 
-6. 真实自付款 Sybil 攻击
-7. 多个评价者串谋
-8. 短时间集中评价
-9. 身份白洗
-10. endpoint 或钱包替换
+扩展版报告实验可以实现：
+
+5. 跨服务使用付款凭证
+6. Provider 在初始 `ALLOW` 后替换报价
+7. 结算超时后的重复付款尝试
+8. 真实自付款 Sybil 攻击
+9. 多个评价者串谋
+10. 短时间集中评价
+11. 身份白洗
+12. endpoint 或钱包替换
 
 ### 12.3 评价指标
 
-- 恶意服务付款率
-- 诚实服务通过率
-- 诚实服务误拒绝率
-- 无效评价接受率
-- 凭证重放接受率
-- 报价替换授权率
-- 重试和注入超时条件下的重复付款率
-- 攻击条件下声誉上涨幅度
-- 攻击成本
-- 人工确认率
-- 冷启动所需交互次数
-- P50、P95 和 P99 评估延迟
-- 每次评估使用的 RPC 请求数
-- 评价和结算 Gas 成本
+当前 JSON/CSV 结果会为每个模型与场景组合记录：
+
+- 决策以及是否授权付款
+- 原始分数、验证后分数和 confidence
+- 不同评价者数量
+- 接受与拒绝的评价数量
+- 声誉风险标记和准确报价风险标记
+
+它还汇总每个模型的诚实场景放行率和对抗 fixture 放行率。当前
+`75% / 25% / 0%` 只表示 B1/B2/B3 分别放行四个固定 fixture 中的
+`3 / 1 / 0` 个，不是总体统计估计。
+
+以下是报告规模的计划指标，当前 runner 尚不输出：带置信区间的诚实服务误拒绝率、
+生成样本上的无效评价/重放接受率、重复付款率、分数膨胀曲线、攻击成本、人工确认率、
+冷启动交互数、P50/P95/P99 延迟、RPC 调用次数和 Gas 成本。
 
 ### 12.4 公平比较方式
 
@@ -693,11 +722,18 @@ B1、B2 和 B3 必须在相同或接近的诚实服务通过率下进行比较�
 2. B3 相比 B2 能否减少评价者集中情况下的付款？
 ```
 
-实验应当使用固定随机种子、多次重复运行、保存配置并报告置信区间。最终 evaluation set 运行前冻结评分参数，并尽量分开开发场景和评估场景；同时报告失败场景和参数敏感性，避免只针对 B3 已知攻击进行调参。原始结果文件必须保留，以便重新生成图表。
+当前 Presentation 对比是确定性功能基准：所有模型使用同一 fixture 和冻结策略，
+保存配置 hash 与原始 JSON/CSV，并且三个模型都放行唯一的诚实对照 fixture。
+由于它只有一个诚实 fixture、四个对抗 fixture、没有随机采样，而且每个组合只运行
+一次，因此不能计算置信区间，也不能据此作总体统计结论。
+
+如果最终报告需要提出统计结论，扩展实验应使用生成的开发集与评估集、固定随机种子、
+多次重复、置信区间和参数敏感性分析；不同模型的诚实通过率应保持相同或相近，并保存
+所有原始结果以便复现。
 
 ### 12.5 可控实验环境
 
-最终实验环境可以设置为：
+下面是未来报告规模的可选实验环境，不是当前已经实现的数据集：
 
 ```text
 10 个诚实服务
@@ -708,7 +744,8 @@ B1、B2 和 B3 必须在相同或接近的诚实服务通过率下进行比较�
 每个配置重复运行 20 次
 ```
 
-Presentation 阶段可以减少规模，最终报告再扩大实验。
+当前 Presentation 数据集包含一个诚实对照和四个对抗 fixture，分别在 B1、B2、B3
+下运行一次，共产生 15 行结果。
 
 ## 13. Presentation MVP
 
@@ -716,16 +753,15 @@ Presentation 原型优先实现一条可稳定演示的完整纵向流程：
 
 - 一个集成在前端展示平台中的 Buyer Agent
 - 一个可配置的 x402 Provider
-- 一个诚实服务身份
-- 一个恶意服务身份
-- ERC-8004 身份和评价加载
+- 一个冻结的 ERC-8004 风格服务身份，以及受控的诚实/对抗证据 profile
+- 通过 Core ports 加载 fixture 身份与评价，后续链上 adapter 复用同一边界
 - x402 `402 Payment Required` 处理
 - 准确的 offer hash 和一次性 EvaluationGrant
-- 受门控的 MetaMask 授权
+- 确定性模式使用 FakeWallet 完成受门控 WalletPort 授权；MetaMask 仍属于 Live adapter
 - payment identifier 和结算状态展示
 - B1 原始声誉
 - B2 付款依据过滤后的声誉
-- 带 reviewer 级聚合的完整 B3 RepuGate 策略
+- 带 reviewer 级聚合和置信度门控的 B3 RepuGate 当前原型
 - `ALLOW` 和 `BLOCK` 决策
 - 无付款刷分攻击
 - 付款凭证重放攻击
@@ -770,7 +806,8 @@ RepuGate/
 │   └── provider/                  # 可配置的 Demo x402 收款方与服务方
 ├── packages/
 │   ├── core/                      # 纯评分、Schema、规范化、Grant、Epoch、状态逻辑
-│   └── client/                    # trustedFetch + GuardedPaymentClient
+│   ├── client/                    # trustedFetch + GuardedPaymentClient
+│   └── x402/                      # 共享 wire headers、codec、Schema 与 payload 类型
 ├── experiments/                  # B1/B2/B3、攻击场景和命令行运行程序
 ├── contracts/
 │   └── MockEIP3009USDC.sol        # 可选，仅用于本地协议测试
@@ -790,7 +827,7 @@ RepuGate/
 
 这是逻辑上的最终结构，并不要求项目一开始就创建每个文件。开发应当从最小端到端流程开始，只增加直接支持研究问题或实验的模块。
 
-依赖方向固定为 `web -> client -> core`、`api -> core`、`experiments -> core` 和 `provider -> core`（仅公开 Schema/类型）。`core` 不依赖 React、HTTP、SQLite 或任何应用目录；Provider 在运行时保持独立。DTO、Schema、错误码和常量放入 `core`，不再保留与其职责重叠的 `shared` package。更具体的文件职责、接口和调用契约见 [`code-architecture.zh-CN.md`](./code-architecture.zh-CN.md)。
+依赖方向固定为 `web -> client -> {core, x402}`、`api -> core`、`experiments -> core` 和 `provider -> {core, x402}`。`core` 不依赖 React、HTTP、SQLite 或任何应用目录；Provider 在运行时保持独立。领域 DTO 与规则放在 `core`，x402 wire 常量、Schema 和 payload 类型放在职责窄化的 `packages/x402` 协议包，而不是通用 `shared` package。更具体的文件职责、接口和调用契约见 [`code-architecture.zh-CN.md`](./code-architecture.zh-CN.md)。
 
 ## 15. 推迟或移除的组件
 
@@ -818,7 +855,7 @@ RepuGate/
 - 确定性本地 Demo
 - 可交互的浏览器前端展示平台
 - 可选的公共测试网演示
-- B0、B1 和支付凭证驱动型 RepuGate 基线
+- Presentation 使用 B1/B2/B3 基线，扩展版报告实验再加入 B0
 - 至少三个可复现的攻击场景
 - 保存的实验配置和结果文件
 - 可以重新生成表格或图表的脚本
@@ -836,7 +873,7 @@ RepuGate/
 - Buyer Agent 集成在前端展示平台中，不作为独立应用
 - Pre 阶段使用确定性脚本 Buyer Agent；LLM 只能作为以后可选的解释层
 - Agent 只能获得 `TrustedPaymentPort`，不能调用通用钱包方法
-- 钱包签名保留在 MetaMask 中，并位于 Evaluation API 之外
+- 签名保留在 WalletPort 中并位于 Evaluation API 之外；确定性模式使用 FakeWallet，Live 模式再使用 MetaMask
 - 使用较底层的 x402 流程，由 RepuGate 控制报价选择
 - 每笔自动付款都需要绑定准确报价、短期且一次性的 `EvaluationGrant`
 - 声誉按照 `IdentityEpoch` 隔离
@@ -849,7 +886,7 @@ RepuGate/
 - 使用 SQLite 保存缓存、防重放和决策日志
 - Evaluation API 是支付状态的唯一持久化写入方
 - 实验与现场演示使用不同数据库或结果目录
-- 使用单个可配置 Demo Provider
+- 使用一个独立、可配置并采用模拟 settlement 的 Demo Provider 进程
 - Honest 和 Malicious 服务使用不同的 ERC-8004 身份、endpoint 和收款配置
 - 使用 React/Vite 构建同时支持确定性 Demo 和可选 Live 模式的前端展示平台
 - 使用 TypeScript、Node.js、viem、SQLite、Vitest 和 pnpm workspace

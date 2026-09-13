@@ -44,7 +44,7 @@ BLOCK     The agent should not authorize the payment.
 
 2. **The gateway never stores private keys**
 
-   Wallet signing remains inside MetaMask or another wallet provider. RepuGate supplies a narrowly scoped payment request only after an `ALLOW` decision and never receives the private key.
+   Signing remains inside the selected `WalletPort`. Deterministic mode uses a FakeWallet with no real key; Live mode will use MetaMask. RepuGate supplies a narrowly scoped payment request only after an `ALLOW` decision and never receives a private key.
 
 3. **Evidence before score**
 
@@ -169,7 +169,7 @@ The project has four application entry points:
 
 - **Presentation Web App**: contains the Buyer Agent, Agent Console, wallet connection, `trustedFetch()`, guarded payment client, and visualisation views
 - **RepuGate Evaluation API**: resolves identity, validates evidence, evaluates policy, issues one-use grants, and reconciles uncertain settlements
-- **Demo Provider**: provides an x402 endpoint with configurable honest, faulty, or malicious behaviour
+- **Independent Demo Provider**: runs as a separate HTTP process and provides an x402 endpoint with configurable honest or malicious behaviour
 - **Experiment Runner**: generates feedback and attack scenarios, runs baselines, and saves results
 
 The Presentation Web App is a required project component. It is a focused demonstration interface rather than a production administration dashboard.
@@ -209,14 +209,15 @@ Evaluation API returns decision + one-use EvaluationGrant
         ↓
 GuardedPaymentClient rechecks grant, offer hash, identity, and policy
         ↓
-MetaMask signs the exact authorization only after ALLOW
+WalletPort signs the exact authorization only after ALLOW
+(FakeWallet in deterministic mode; MetaMask in Live mode)
         ↓
 Client resubmits the x402 request and tracks settlement by paymentId
 ```
 
 This choice avoids proxying all request and response content, reduces privacy exposure, keeps the private key outside the gateway, removes unnecessary HTTP forwarding complexity, and keeps the implementation focused on the research problem.
 
-For the browser demo, `trustedFetch()` calls a thin local RepuGate Evaluation API. The API exposes Core assessment, one-use grant, reconciliation, and experiment data but does not proxy target API traffic. The browser communicates directly with the x402 service and wallet.
+For the browser demo, `trustedFetch()` calls a thin local RepuGate Evaluation API. The API exposes Core assessment, one-use Grant, and payment-state handling but does not proxy target API traffic. Frozen experiment JSON is bundled read-only by the Web app. The browser reaches the independent x402 Provider through a development reverse proxy and uses the configured WalletPort.
 
 The implementation must keep offer selection under RepuGate control. It must not delegate selection to an opaque auto-payment wrapper that may choose a different `accepts[]` entry after evaluation. A lower-level x402 client flow or an explicit selector hook is used so the selected payment requirements are known before any signature request.
 
@@ -489,9 +490,11 @@ Each assessment stores enough information for explanation and evaluation:
 
 ## 8. Reputation Models and Baselines
 
-### B0: No Gate
+### B0: No Gate (Reference Baseline, Not Yet Implemented)
 
 The Agent authorizes every valid x402 payment request without evaluating service reputation.
+It remains a target baseline for the expanded report experiment; the current
+Presentation runner executes B1, B2, and B3 only.
 
 ### B1: Raw ERC-8004 Reputation
 
@@ -501,7 +504,7 @@ All submitted, non-revoked feedback in the supported `quality` dimension is aggr
 
 Only feedback with a valid, unique, service-bound payment receipt contributes to the score. Every accepted feedback record has equal weight. Reviewer diversity is reported for comparison but does not gate payment.
 
-### B3: Full RepuGate
+### B3: RepuGate Prototype
 
 B3 uses the same payment-grounded evidence as B2, then limits repeated influence by first averaging each reviewer's accepted records. It calculates confidence from the number of distinct verified reviewers and requires both score and confidence to meet the `ALLOW` policy. The current prototype implements:
 
@@ -515,6 +518,25 @@ Time decay, burst detection, common funding-source analysis, and service-identit
 The project must not claim full Sybil resistance. A malicious provider can fund multiple wallets and make real payments to itself. Payment grounding creates stronger evidence and prevents zero-cost feedback and receipt reuse, but does not prove reviewer independence or honesty.
 
 Payment amount is not weighted linearly: a provider can recover most funds from self-payments and would otherwise be able to buy reputation cheaply. The current prototype uses distinct verified payers and capped per-reviewer influence as risk indicators rather than proofs of independent users; transaction timing and funding concentration remain future extensions.
+
+### Current Decision Policy
+
+The frozen `repugate-policy-v1` parameters used by the implementation and the
+Presentation experiment are:
+
+```text
+ALLOW score threshold       70% (7,000 bps)
+REVIEW score threshold      50% (5,000 bps)
+B3 ALLOW confidence         60% (6,000 bps)
+Full-confidence reviewers   5
+confidence                  min(distinct verified reviewers / 5, 1)
+```
+
+B1 and B2 use the score thresholds; their confidence is diagnostic only. B3
+requires both score and confidence for `ALLOW`. A score of at least 70% with
+insufficient B3 confidence returns `REVIEW`; a score below 50% returns `BLOCK`.
+Any identity or exact-offer binding failure is a hard `BLOCK` for all three
+implemented models. The policy parameters are included in `policyHash`.
 
 ## 9. Threat Model
 
@@ -562,7 +584,7 @@ The course prototype assumes that:
 - the pinned ERC-8004 contracts behave according to their source code
 - finalized blockchain state is correct
 - the selected RPC returns correct chain data
-- x402 payment signatures and settlement are correctly verified
+- in Live mode, the selected x402 facilitator and chain adapter correctly verify signatures and settlement; deterministic mode performs structural validation and simulated settlement only
 - standard cryptographic primitives remain secure
 - untrusted JavaScript cannot execute in the Presentation Web App's trusted origin
 
@@ -646,40 +668,57 @@ Request privacy is minimized: audit records store a normalized origin/path hash 
 - **RQ4**: What latency, RPC, and gas overhead does RepuGate introduce?
 - **RQ5**: Do offer-bound grants and idempotent reconciliation prevent offer substitution and duplicate payment under retry failures?
 
+The current deterministic Presentation fixtures directly exercise RQ1, RQ2,
+and the exact-offer-binding portion of RQ5. RQ3, RQ4, and statistical retry
+measurements remain report-scale evaluation work.
+
 ### 12.2 Attacks
 
-The presentation prototype must include:
+The current Presentation experiment runner implements four fixed adversarial
+fixtures:
 
 1. feedback without payment
 2. payment-receipt replay
-3. cross-service receipt reuse
-4. offer substitution after an `ALLOW` decision
-5. settlement timeout followed by a duplicate retry attempt
+3. reviewer concentration
+4. an offered amount that differs from the trusted catalog's expected offer
 
-Later experiments may include:
+The fourth fixture is an expected-offer mismatch detected during evaluation; it
+does not claim that the independent Provider changed its offer after an
+`ALLOW`. Post-submission network uncertainty and one-use Grant behaviour are
+covered by deterministic Client/API tests, but are not aggregated as experiment
+rows.
 
-6. paid Sybil self-review
-7. colluding reviewers
-8. burst feedback
-9. identity whitewashing
-10. endpoint or wallet replacement
+Expanded report experiments may include:
+
+5. cross-service receipt reuse
+6. provider-side substitution after an initial `ALLOW`
+7. settlement timeout followed by a duplicate retry attempt
+8. paid Sybil self-review
+9. colluding reviewers
+10. burst feedback
+11. identity whitewashing
+12. endpoint or wallet replacement
 
 ### 12.3 Metrics
 
-- malicious payment rate
-- honest service approval rate
-- honest service false rejection rate
-- invalid feedback acceptance rate
-- receipt replay acceptance rate
-- offer-substitution authorization rate
-- duplicate-payment rate under retries and injected timeouts
-- score inflation under attack
-- attack cost
-- manual review rate
-- cold-start interactions required
-- P50, P95, and P99 gateway latency
-- RPC calls per evaluation
-- feedback and settlement gas cost
+The current JSON/CSV artifact records, for every model/scenario pair:
+
+- decision and whether payment was authorized
+- raw score, verified score, and confidence
+- distinct reviewer count
+- accepted and rejected feedback counts
+- reputation and exact-offer risk flags
+
+It summarizes honest-scenario allow rate and adversarial-fixture allow rate for
+each model. The current `75% / 25% / 0%` adversarial allow rates mean only that
+B1/B2/B3 allow `3 / 1 / 0` of the four fixed fixtures; they are not population
+estimates.
+
+The following are planned report-scale metrics and are not emitted by the
+current runner: false-rejection confidence intervals, invalid-feedback and
+replay acceptance rates over generated samples, duplicate-payment rate, score
+inflation curves, attack cost, manual-review rate, cold-start interactions,
+P50/P95/P99 latency, RPC calls, and gas cost.
 
 ### 12.4 Fair Comparison
 
@@ -693,11 +732,23 @@ At the same honest-service approval rate:
 2. does B3 reduce reviewer-concentration payments relative to B2?
 ```
 
-Experiments should use fixed random seeds, multiple repetitions, saved configuration, and reported confidence intervals. Scoring parameters are frozen before the final evaluation set is run; development and evaluation scenarios are kept separate where practical. Failure scenarios and parameter-sensitivity results are reported so B3 is not tuned only to attacks it was designed to defeat. Raw result files should be preserved so graphs can be regenerated.
+The current Presentation comparison is a deterministic functional benchmark:
+all models receive the same fixture and frozen policy; the configuration hash
+and raw JSON/CSV are saved; and all three models allow the single honest control
+fixture. Because it contains one honest fixture, four adversarial fixtures, no
+random sampling, and one execution per pair, it does not support confidence
+intervals or general population claims.
+
+If the final report makes statistical claims, the expanded experiment should
+use generated development/evaluation sets, fixed random seeds, multiple
+repetitions, confidence intervals, and parameter-sensitivity analysis. Honest
+approval should be matched across models, and raw results must remain
+reproducible.
 
 ### 12.5 Controlled Testbed
 
-A possible final-scale testbed is:
+The following is a possible future report-scale testbed, not the currently
+implemented dataset:
 
 ```text
 10 honest services
@@ -708,7 +759,8 @@ A possible final-scale testbed is:
 20 repetitions per configuration
 ```
 
-Exact numbers may be reduced for the presentation prototype and expanded for the report.
+The implemented Presentation dataset contains one honest control and four
+adversarial fixtures, evaluated once under B1, B2, and B3 for 15 result rows.
 
 ## 13. Presentation MVP
 
@@ -716,16 +768,15 @@ The presentation prototype prioritizes one stable, complete vertical slice:
 
 - one Buyer Agent integrated into the Presentation Web App
 - one configurable x402 Provider
-- one honest service identity
-- one malicious service identity
-- ERC-8004 identity and feedback loading
+- one frozen ERC-8004-style service identity with controlled honest and adversarial evidence profiles
+- fixture identity and feedback loading through the same Core ports intended for a later onchain adapter
 - x402 `402 Payment Required` handling
 - exact offer hashing and a one-use EvaluationGrant
-- guarded MetaMask authorization
+- guarded WalletPort authorization using FakeWallet in deterministic mode; MetaMask remains a Live-mode adapter
 - a payment identifier and settlement state display
 - B1 raw reputation
 - B2 payment-grounded reputation
-- the complete B3 RepuGate policy with reviewer-level aggregation
+- the current B3 RepuGate prototype with reviewer-level aggregation and a confidence gate
 - `ALLOW` and `BLOCK` decisions
 - feedback-without-payment attack
 - receipt-replay attack
@@ -770,7 +821,8 @@ RepuGate/
 │   └── provider/                  # configurable demo x402 payee/service
 ├── packages/
 │   ├── core/                      # pure scoring, schemas, canonicalisation, grant, epoch, state logic
-│   └── client/                    # trustedFetch + GuardedPaymentClient
+│   ├── client/                    # trustedFetch + GuardedPaymentClient
+│   └── x402/                      # shared wire headers, codec, schemas, and payload types
 ├── experiments/                  # B1/B2/B3, attack scenarios, and CLI runner
 ├── contracts/
 │   └── MockEIP3009USDC.sol        # optional local protocol-test support
@@ -790,7 +842,7 @@ RepuGate/
 
 This is a logical structure, not a requirement to create every file at project start. The implementation should begin with the smallest end-to-end flow and add modules only when they support the research question or evaluation.
 
-The fixed dependency direction is `web -> client -> core`, `api -> core`, `experiments -> core`, and `provider -> core` for public schemas/types only. `core` does not depend on React, HTTP, SQLite, or an application directory, and the Provider remains operationally independent. DTOs, schemas, error codes, and constants live in `core`; there is no overlapping `shared` package. See [`code-architecture.md`](./code-architecture.md) for concrete file responsibilities, interfaces, and call contracts.
+The fixed dependency direction is `web -> client -> {core, x402}`, `api -> core`, `experiments -> core`, and `provider -> {core, x402}`. `core` does not depend on React, HTTP, SQLite, or an application directory, and the Provider remains operationally independent. Domain DTOs and rules live in `core`; x402 wire constants, schemas, and payload types live in the narrowly scoped `packages/x402` protocol package rather than a generic shared package. See [`code-architecture.md`](./code-architecture.md) for concrete file responsibilities, interfaces, and call contracts.
 
 ## 15. Deferred or Removed Components
 
@@ -818,7 +870,7 @@ These components add substantial implementation cost without being necessary to 
 - deterministic local demo
 - interactive browser-based presentation platform
 - optional public-testnet demonstration
-- B0, B1, and payment-grounded RepuGate baselines
+- B1/B2/B3 Presentation baselines, with B0 added for the expanded report experiment
 - at least three reproducible attack scenarios
 - saved experiment configurations and result files
 - scripts that regenerate result tables or graphs
@@ -836,7 +888,7 @@ The following decisions are considered fixed unless implementation evidence requ
 - the Buyer Agent is embedded in the Presentation Web App, not a separate application
 - a deterministic scripted Buyer Agent for the presentation; an LLM is only an optional later explanation layer
 - the Agent receives only `TrustedPaymentPort`; raw wallet methods are not part of its capability set
-- wallet signing remains in MetaMask and outside the Evaluation API
+- signing remains behind WalletPort and outside the Evaluation API; deterministic mode uses FakeWallet and Live mode will use MetaMask
 - lower-level x402 offer selection remains under RepuGate control
 - every automatic payment requires an exact-offer-bound, short-lived, one-use `EvaluationGrant`
 - identity reputation is scoped by `IdentityEpoch`
@@ -849,7 +901,7 @@ The following decisions are considered fixed unless implementation evidence requ
 - SQLite for cache, replay tracking, and decision logs
 - the Evaluation API is the sole persistent writer of payment state
 - experiments and the live demo use separate databases or result directories
-- configurable single Demo Provider
+- one independent configurable Demo Provider process with simulated settlement
 - distinct ERC-8004 identities, endpoints, and payee configurations for the Honest and Malicious services
 - React/Vite presentation web app with deterministic and optional live modes
 - TypeScript, Node.js, viem, SQLite, Vitest, and a pnpm workspace

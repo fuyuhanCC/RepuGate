@@ -24,10 +24,13 @@ import {
 import type { ServiceCatalogItem } from "./api/dto";
 import {
   BrowserIdempotencyKeys,
-  DemoProviderFetch,
   DemoWallet,
 } from "./demo/demo-runtime";
 import { AttackLab } from "./experiments/AttackLab";
+import {
+  checkProviderHealth,
+  HttpProviderFetch,
+} from "./provider/http-provider-fetch";
 
 const SCENARIO_META: Record<
   ServiceCatalogItem["id"],
@@ -151,10 +154,14 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
 
-    void Promise.all([checkApiHealth(), loadServiceCatalog()])
-      .then(([healthy, catalog]) => {
+    void Promise.all([
+      checkApiHealth(),
+      checkProviderHealth(),
+      loadServiceCatalog(),
+    ])
+      .then(([apiHealthy, providerHealthy, catalog]) => {
         if (cancelled) return;
-        setApiOnline(healthy);
+        setApiOnline(apiHealthy && providerHealthy);
         setServices(catalog);
       })
       .catch((error: unknown) => {
@@ -187,7 +194,7 @@ export function App() {
     setCatalogError(null);
     const startedAt = performance.now();
     const wallet = new DemoWallet();
-    const provider = new DemoProviderFetch(selectedService);
+    const provider = new HttpProviderFetch(selectedService);
     const api = new HttpEvaluationApi();
     const offered = canonicalizeOffer(selectedService.offer).offer;
     const body = JSON.stringify({
@@ -295,7 +302,11 @@ export function App() {
         </nav>
         <div className={`api-status ${apiOnline === true ? "online" : "offline"}`}>
           <span className="status-dot" />
-          {apiOnline === null ? "Checking API" : apiOnline ? "Deterministic API" : "API offline"}
+          {apiOnline === null
+            ? "Checking services"
+            : apiOnline
+              ? "API + Provider online"
+              : "Demo services offline"}
         </div>
       </header>
 

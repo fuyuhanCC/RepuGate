@@ -5,8 +5,9 @@
   "packageManager": "pnpm@11.19.0",
   "scripts": {
     "build": "pnpm --filter @repugate/web build",
-    "dev": "pnpm --parallel --filter @repugate/api --filter @repugate/web dev",
+    "dev": "pnpm --parallel --filter @repugate/api --filter @repugate/provider --filter @repugate/web dev",
     "dev:api": "pnpm --filter @repugate/api dev",
+    "dev:provider": "pnpm --filter @repugate/provider dev",
     "dev:web": "pnpm --filter @repugate/web dev",
     "experiment": "pnpm --filter @repugate/experiments run generate",
     "typecheck": "pnpm -r --if-present typecheck",

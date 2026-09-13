@@ -11,9 +11,10 @@ and exposes a narrow wallet capability only after a one-use Grant is consumed.
 ./pnpmw dev
 ```
 
-Open <http://127.0.0.1:5173>. The API listens on `127.0.0.1:3001` and is proxied
-by Vite. This mode uses a browser-side Demo Provider and FakeWallet; it never
-opens MetaMask, broadcasts a transaction, or spends real funds.
+Open <http://127.0.0.1:5173>. The Evaluation API listens on `127.0.0.1:3001`
+and the independent x402 Demo Provider listens on `127.0.0.1:3002`; Vite
+proxies both services. This mode uses a FakeWallet and simulated settlement; it
+never opens MetaMask, broadcasts a transaction, or spends real funds.
 
 `pnpmw` is the project-local launcher. On this Mac it automatically uses the
 Node.js and pnpm runtime bundled with Codex, so no global installation or shell
@@ -23,7 +24,8 @@ uses that installation instead.
 Recommended presentation checks:
 
 1. Run `Honest service` with `B3 · RepuGate`: the decision is `ALLOW`, the wallet
-   signs once, and the payment ends in `SETTLEMENT_PENDING` for reconciliation.
+   signs once, the independent Provider receives an initial 402 request and one
+   paid retry, and the payment ends in `SETTLEMENT_PENDING` for reconciliation.
 2. Run `Ungrounded ratings` with B1, then B2: B1 pays, while B2 rejects feedback
    without verified payment evidence and never calls the wallet.
 3. Run `Reviewer concentration` with B2, then B3: B2 pays because every receipt

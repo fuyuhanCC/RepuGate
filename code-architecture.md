@@ -1,6 +1,6 @@
 # RepuGate Code Architecture
 
-> This document turns the system design in `design.md` into an implementable TypeScript workspace, module boundaries, interface contracts, and call relationships. It contains no business implementation.
+> This document maps the system design in `design.md` to the current TypeScript workspace, module boundaries, interface contracts, and planned Live-mode adapters.
 
 ## 1. Architecture Goals
 
@@ -46,11 +46,8 @@ RepuGate/
 │   │   └── migrations/
 │   └── provider/
 │       └── src/
-│           ├── routes/                  # honest and malicious service routes
-│           ├── behaviours/              # honest and offer-substitution behaviours
-│           ├── x402/                    # official x402 server SDK adapter
-│           ├── catalog.ts               # service identity and endpoint configuration
-│           ├── app.ts
+│           ├── app.ts                   # 402 challenge and paid request route
+│           ├── app.test.ts              # provider protocol/security tests
 │           └── server.ts
 ├── packages/
 │   ├── core/
@@ -66,7 +63,7 @@ RepuGate/
 │   │       ├── ports/                   # external capability interfaces
 │   │       ├── errors/
 │   │       └── index.ts
-│   └── client/
+│   ├── client/
 │       └── src/
 │           ├── trustedFetch.ts
 │           ├── offerSelector.ts
@@ -74,6 +71,8 @@ RepuGate/
 │           ├── x402ClientAdapter.ts
 │           ├── ports.ts
 │           └── index.ts
+│   └── x402/
+│       └── src/                         # shared headers, codec, schemas, types
 ├── experiments/
 │   └── src/
 │       ├── scenarios/                   # ungrounded/replay/substitution
@@ -104,15 +103,16 @@ RepuGate/
 ## 3. Fixed Dependency Direction
 
 ```text
-apps/web ───────→ packages/client ───→ packages/core
-    │                                      ↑
-    └──────── HTTP ───────→ apps/api ──────┤
-                                           │
-apps/provider ───────── schema only ───────┤
-experiments ───────────────────────────────┘
+apps/web ───────→ packages/client ──────→ packages/core
+    │                    │                      ↑
+    │                    └→ packages/x402 ─────┤
+    ├──────── HTTP ───────→ apps/api ──────────┤
+    └──────── HTTP ───────→ apps/provider      │
+                                  └→ packages/x402
+experiments ───────────────────────────────→ packages/core
 
 apps/api adapters ──→ RPC / ERC-8004 / SQLite
-apps/provider x402 ─→ Facilitator / Base Sepolia
+apps/provider Live x402 ─→ Facilitator / Base Sepolia
 packages/client ────→ MetaMask / target Provider
 ```
 
@@ -123,7 +123,7 @@ The following rules are mandatory:
 - `web` enters payment flows only through `packages/client`; it does not construct signing requests itself.
 - `api` does not import `web` or `client`.
 - `experiments` calls the shared evaluator directly and does not duplicate scoring algorithms.
-- `provider` reuses only public schemas/types from `core`; it does not import evaluation or policy code.
+- `provider` reuses public domain types from `core` and protocol schemas from `packages/x402`; it does not import evaluation or policy code.
 - A package exposes public APIs only through `index.ts` or explicit subpath exports. Cross-package imports of internal files are forbidden.
 
 ## 4. `packages/core`: Single Source of Business Rules
@@ -300,10 +300,14 @@ trustedFetch(input, dependencies): Promise<TrustedFetchResult>
 
 Internal responsibilities:
 
-- `offerSelector.ts`: selects one `accepts[]` entry by network, scheme, asset, budget, and timeout.
-- `x402ClientAdapter.ts`: isolates concrete APIs from official packages such as `@x402/core` and `@x402/evm`.
-- `guardedPaymentClient.ts`: consumes the Grant, rechecks the authorized intent field by field, calls WalletPort, and resubmits the request.
+- `offer-selector.ts`: selects one `accepts[]` entry by network, scheme, asset, budget, and timeout.
+- `trusted-fetch.ts`: orchestrates the initial request, 402 parsing, evaluation, Grant use, and paid retry.
+- `guarded-payment-client.ts`: consumes the Grant, rechecks the authorized intent field by field, calls WalletPort, and resubmits the request.
 - `ports.ts`: defines `WalletPort`, `EvaluationApiPort`, and injectable `FetchPort`.
+
+`packages/x402` owns the transport-level header constants, codec, runtime
+schemas, and payload types shared by Client and Provider. Integration with an
+official SDK is a Live adapter and does not change these application boundaries.
 
 `WalletPort` is deliberately narrow:
 
@@ -416,34 +420,37 @@ The Agent may choose a service and budget. It cannot set a decision to `ALLOW` a
 
 Components do not call raw `fetch`, RPC, or MetaMask directly. Those operations pass through the API client, `trustedFetch`, and WalletPort adapter respectively.
 
-## 8. `apps/provider`: One App, Isolated Identities
+## 8. `apps/provider`: Independent HTTP Boundary
 
-Provider is one process exposing at least two logical services:
+Provider is an independent process exposing the deterministic scenario route:
 
 ```text
-GET/POST /services/honest/...
-GET/POST /services/malicious/...
+GET  /provider/health
+POST /provider/services/:scenarioId/inference
 ```
 
-They use different:
+The current Presentation MVP uses one frozen service identity. The scenario ID
+selects controlled reputation evidence or provider behaviour; it is not
+presented as a production multi-tenant identity system.
 
-- ERC-8004 `agentId`
-- registered endpoint
-- `agentWallet`/`payTo`
-- fixture feedback set
+Without `PAYMENT-SIGNATURE`, the Provider returns a versioned HTTP 402 challenge.
+With a payload, it validates the shared runtime schema and exact resource,
+offer, authorization, and `repugate-agent` bindings before returning a simulated
+settlement response.
 
-Malicious behaviour is injected through explicit strategies rather than scattered environment-variable checks:
+Malicious behaviour is selected explicitly from the scenario ID rather than
+through scattered environment-variable checks.
 
-```ts
-interface ProviderBehaviour {
-  buildPaymentRequired(request: RequestContext): PaymentRequired;
-  handlePaidRequest(request: PaidRequestContext): Promise<ServiceResponse>;
-}
-```
+The honest scenario returns the expected offer. The `offer-substitution`
+scenario returns a changed amount relative to the trusted catalog value, so the
+Evaluation API blocks it before Grant consumption or wallet signing. Every
+malicious scenario has an explicit name for tests and presentation explanations.
 
-`HonestBehaviour` returns a stable offer. `OfferSubstitutionBehaviour` changes amount or recipient at the recheck stage. Every malicious scenario has an explicit name for tests and presentation explanations.
-
-The official x402 SDK handles protocol parsing, payment payloads, and facilitator integration. The `repugate-agent` extension and concrete SDK calls are contained in `provider/x402` so SDK changes do not spread into business modules. The [official x402 repository](https://github.com/x402-foundation/x402) currently separates TypeScript functionality into packages including `@x402/core`, `@x402/evm`, `@x402/fetch`, and server-framework integrations; this project imports only the required EVM/HTTP subset.
+`packages/x402` is the shared protocol boundary for header names, base64 JSON
+codec, runtime schemas, and TypeScript types. The deterministic Provider checks
+payload structure and exact binding but deliberately does not claim to verify a
+cryptographic signature or onchain settlement. An official x402 SDK/facilitator
+adapter belongs to the later Live-mode slice.
 
 ## 9. Experiments: Offline Entry Point to the Real Core
 
@@ -587,6 +594,7 @@ Every log carries `requestId`; evaluation logs carry `decisionId`; payment logs 
 - Honest Provider receives `ALLOW` and returns a result
 - Malicious Provider may pass B1 or B2 but is denied by the stronger applicable model
 - MetaMask with Base Sepolia is a separate manual smoke test, not a CI requirement
+- the browser demo reaches Provider over HTTP; Honest makes a 402 request and one paid retry
 
 ## 14. Composition Root and Configuration
 
@@ -633,4 +641,5 @@ Before feature expansion, the code must satisfy all of the following:
 - The client cannot mark a payment `SETTLED` directly.
 - Changing any security-critical offer field changes `offerHash`.
 - Fixture mode runs fully offline; a Live-mode failure cannot break the demo.
-- Honest and Malicious service identities and payee configurations remain isolated.
+- Provider is a separate process and shares x402 wire schemas with Client through `packages/x402`.
+- Controlled malicious behaviour is selected explicitly and cannot silently alter the Honest scenario.

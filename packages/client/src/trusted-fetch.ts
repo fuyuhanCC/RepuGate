@@ -14,6 +14,11 @@ import {
   evmAddressSchema,
   hashRequestBody,
 } from "@repugate/core";
+import {
+  PAYMENT_REQUIRED_HEADER,
+  PAYMENT_RESPONSE_HEADER,
+  PAYMENT_SIGNATURE_HEADER,
+} from "@repugate/x402";
 
 import { TrustedFetchError } from "./errors";
 import { GuardedPaymentClient } from "./guarded-payment-client";
@@ -37,9 +42,11 @@ import {
   type SettlementResponse,
 } from "./x402/schemas";
 
-export const PAYMENT_REQUIRED_HEADER = "PAYMENT-REQUIRED";
-export const PAYMENT_SIGNATURE_HEADER = "PAYMENT-SIGNATURE";
-export const PAYMENT_RESPONSE_HEADER = "PAYMENT-RESPONSE";
+export {
+  PAYMENT_REQUIRED_HEADER,
+  PAYMENT_RESPONSE_HEADER,
+  PAYMENT_SIGNATURE_HEADER,
+};
 
 export type TrustedRequestBody = string | Uint8Array;
 

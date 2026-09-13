@@ -1,6 +1,6 @@
 # RepuGate 代码架构
 
-> 本文把 `design.zh-CN.md` 中的系统设计落实为可编码的 TypeScript workspace、模块边界、接口契约和调用关系。本文不包含业务实现。
+> 本文把 `design.zh-CN.md` 映射为当前 TypeScript workspace、模块边界、接口契约及后续 Live 模式适配器。
 
 ## 1. 架构目标
 
@@ -46,11 +46,8 @@ RepuGate/
 │   │   └── migrations/
 │   └── provider/
 │       └── src/
-│           ├── routes/                  # honest、malicious 服务路由
-│           ├── behaviours/              # 正常、报价替换等行为
-│           ├── x402/                    # 官方 x402 server SDK adapter
-│           ├── catalog.ts               # 服务身份和 endpoint 配置
-│           ├── app.ts
+│           ├── app.ts                   # 402 challenge 与付费请求路由
+│           ├── app.test.ts              # Provider 协议/安全测试
 │           └── server.ts
 ├── packages/
 │   ├── core/
@@ -66,7 +63,7 @@ RepuGate/
 │   │       ├── ports/                   # 外部能力接口
 │   │       ├── errors/
 │   │       └── index.ts
-│   └── client/
+│   ├── client/
 │       └── src/
 │           ├── trustedFetch.ts
 │           ├── offerSelector.ts
@@ -74,6 +71,8 @@ RepuGate/
 │           ├── x402ClientAdapter.ts
 │           ├── ports.ts
 │           └── index.ts
+│   └── x402/
+│       └── src/                         # 共享 headers、codec、Schema、类型
 ├── experiments/
 │   └── src/
 │       ├── scenarios/                   # ungrounded/replay/substitution
@@ -104,15 +103,16 @@ RepuGate/
 ## 3. 固定依赖方向
 
 ```text
-apps/web ───────→ packages/client ───→ packages/core
-    │                                      ↑
-    └──────── HTTP ───────→ apps/api ──────┤
-                                           │
-apps/provider ───────── schema only ───────┤
-experiments ───────────────────────────────┘
+apps/web ───────→ packages/client ──────→ packages/core
+    │                    │                      ↑
+    │                    └→ packages/x402 ─────┤
+    ├──────── HTTP ───────→ apps/api ──────────┤
+    └──────── HTTP ───────→ apps/provider      │
+                                  └→ packages/x402
+experiments ───────────────────────────────→ packages/core
 
 apps/api adapters ──→ RPC / ERC-8004 / SQLite
-apps/provider x402 ─→ Facilitator / Base Sepolia
+apps/provider Live x402 ─→ Facilitator / Base Sepolia
 packages/client ────→ MetaMask / target Provider
 ```
 
@@ -123,7 +123,7 @@ packages/client ────→ MetaMask / target Provider
 - `web` 只能通过 `packages/client` 进入付款流程，不能自己构造签名请求。
 - `api` 不导入 `web` 或 `client`。
 - `experiments` 直接调用共享 evaluator，不通过网页，也不复制评分算法。
-- `provider` 只从 `core` 复用公开 Schema/类型，不导入评估或策略代码。
+- `provider` 从 `core` 复用公开领域类型，从 `packages/x402` 复用协议 Schema；不导入评估或策略代码。
 - 每个 package 只通过 `index.ts` 或明确的 subpath export 暴露公共 API，禁止跨包导入内部文件。
 
 ## 4. `packages/core`：唯一业务规则来源
@@ -300,10 +300,13 @@ trustedFetch(input, dependencies): Promise<TrustedFetchResult>
 
 内部组件职责：
 
-- `offerSelector.ts`：按 network、scheme、asset、预算和 timeout 选择唯一 `accepts[]` 项。
-- `x402ClientAdapter.ts`：隔离 `@x402/core`、`@x402/evm` 等官方 SDK 的具体 API。
-- `guardedPaymentClient.ts`：消费 Grant、逐字段复核 authorized intent、调用 WalletPort、重新发送请求。
+- `offer-selector.ts`：按 network、scheme、asset、预算和 timeout 选择唯一 `accepts[]` 项。
+- `trusted-fetch.ts`：编排初始请求、402 解析、评估、Grant 使用和付费重试。
+- `guarded-payment-client.ts`：消费 Grant、逐字段复核 authorized intent、调用 WalletPort、重新发送请求。
 - `ports.ts`：定义 `WalletPort`、`EvaluationApiPort` 和可注入 `FetchPort`。
+
+`packages/x402` 统一保存 Client 和 Provider 共享的 header 常量、codec、runtime
+Schema 和 payload 类型。官方 SDK 集成属于 Live adapter，不改变这些应用边界。
 
 `WalletPort` 必须窄化：
 
@@ -416,34 +419,32 @@ Agent 可以选择服务和预算，但不能自己把决策改成 `ALLOW`，也
 
 页面组件不直接调用 `fetch`、RPC 或 MetaMask；这些操作分别经过 API client、`trustedFetch` 和 WalletPort adapter。
 
-## 8. `apps/provider`：一个应用，多个隔离身份
+## 8. `apps/provider`：独立 HTTP 边界
 
-Provider 是单个进程，但至少暴露两个逻辑服务：
+Provider 是独立进程，暴露确定性场景路由：
 
 ```text
-GET/POST /services/honest/...
-GET/POST /services/malicious/...
+GET  /provider/health
+POST /provider/services/:scenarioId/inference
 ```
 
-两者使用不同的：
+当前 Presentation MVP 使用一个冻结服务身份。场景 ID 用于选择受控声誉证据或
+Provider 行为，不把它描述成生产环境的多租户身份系统。
 
-- ERC-8004 `agentId`
-- 注册 endpoint
-- `agentWallet`/`payTo`
-- fixture feedback set
+没有 `PAYMENT-SIGNATURE` 时，Provider 返回带版本的 HTTP 402 challenge。
+收到 payload 后，它使用共享 runtime Schema，并逐项验证 resource、offer、
+authorization 和 `repugate-agent` 绑定，然后返回模拟 settlement。
 
-恶意行为通过显式 strategy 注入，不使用散落的环境变量判断：
+恶意行为由场景 ID 显式选择，不使用散落的环境变量判断。
 
-```ts
-interface ProviderBehaviour {
-  buildPaymentRequired(request: RequestContext): PaymentRequired;
-  handlePaidRequest(request: PaidRequestContext): Promise<ServiceResponse>;
-}
-```
+诚实场景返回预期报价；`offer-substitution` 场景相对可信 catalog 改变金额，
+Evaluation API 因此会在消费 Grant 和调用钱包前将其阻断。所有恶意场景都有
+明确名称，便于测试和 PPT 解释。
 
-`HonestBehaviour` 返回稳定报价；`OfferSubstitutionBehaviour` 在复核阶段返回变化后的金额或收款地址。所有恶意场景必须有明确名称，便于测试和 PPT 解释。
-
-官方 x402 SDK 只负责协议解析、付款 payload 和 facilitator 交互。`repugate-agent` extension 与具体 SDK 调用由 `provider/x402` adapter 封装，避免 SDK 版本变化扩散到业务模块。[官方 x402 仓库](https://github.com/x402-foundation/x402)目前将 TypeScript 能力拆分为 `@x402/core`、`@x402/evm`、`@x402/fetch` 和服务端框架包，本项目只引入实际需要的 EVM/HTTP 子集。
+`packages/x402` 是共享协议边界，负责 header 名称、base64 JSON codec、runtime
+Schema 和 TypeScript 类型。确定性 Provider 验证 payload 结构和准确绑定，但
+明确不声称已经完成密码学签名验证或链上结算。官方 x402 SDK/facilitator
+adapter 属于后续 Live 模式。
 
 ## 9. Experiments：复用真实 Core 的离线入口
 
@@ -586,6 +587,7 @@ interface ApiError {
 - Honest Provider 得到 `ALLOW` 并返回结果
 - Malicious Provider 可能通过 B1 或 B2，但必须被适用的更强模型拒绝
 - MetaMask + Base Sepolia 作为独立手动 smoke test，不作为 CI 必需条件
+- 浏览器 Demo 通过 HTTP 到达 Provider；Honest 流程先收到 402，再进行一次付费重试
 
 ## 14. Composition Root 与配置
 
@@ -632,4 +634,5 @@ REPUGATE_MODE=live
 - 客户端不能直接把 payment 标记为 `SETTLED`。
 - 修改报价任一安全关键字段都会改变 `offerHash`。
 - fixture 模式完全离线可运行，Live 模式故障不会破坏 Demo。
-- Honest/Malicious 服务的身份和收款配置彼此隔离。
+- Provider 作为独立进程运行，并通过 `packages/x402` 与 Client 共享 wire Schema。
+- 受控恶意行为必须显式选择，不能静默改变 Honest 场景。

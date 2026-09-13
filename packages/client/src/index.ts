@@ -40,6 +40,7 @@ export {
   exactEvmPaymentRequirementsSchema,
   extensionEntrySchema,
   extensionsSchema,
+  paymentPayloadSchema,
   paymentRequiredSchema,
   paymentRequirementsSchema,
   repugateAgentInfoSchema,
