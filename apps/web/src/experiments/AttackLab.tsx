@@ -7,6 +7,8 @@ import {
 
 function modelLabel(model: ReputationModel): string {
   switch (model) {
+    case "B0_NO_GATE":
+      return "B0 · No rep.";
     case "B1_RAW":
       return "B1 · Raw";
     case "B2_GROUNDED":
@@ -27,6 +29,10 @@ function percent(value: number | null): string {
 }
 
 function scoreFor(row: ExperimentResultRow): number | null {
+  if (row.model === "B0_NO_GATE") {
+    return null;
+  }
+
   return row.model === "B1_RAW" ? row.rawScoreBps : row.verifiedScoreBps;
 }
 
@@ -121,7 +127,11 @@ export function AttackLab() {
                       <span className={`matrix-decision ${row.decision.toLowerCase()}`}>
                         {row.decision}
                       </span>
-                      <small>{percent(scoreFor(row))} score</small>
+                      <small>
+                        {scoreFor(row) === null
+                          ? "No reputation score"
+                          : `${percent(scoreFor(row))} score`}
+                      </small>
                     </td>
                   ))}
                 </tr>

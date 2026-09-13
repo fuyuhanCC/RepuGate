@@ -9,6 +9,37 @@ function bytes32(byte: string): Bytes32 {
 }
 
 describe("evaluateOffer", () => {
+  it("keeps shared offer and identity controls but does not read feedback for B0", async () => {
+    const scenario = createDeterministicScenario(
+      "honest-service",
+      "B0_NO_GATE",
+    );
+    const result = await evaluateOffer(scenario.input, {
+      ...scenario.ports,
+      feedbackReader: {
+        async listQualityFeedback() {
+          throw new Error("B0 must not read reputation feedback");
+        },
+      },
+      paymentProofVerifier: {
+        async verify() {
+          throw new Error("B0 must not verify payment evidence");
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      model: "B0_NO_GATE",
+      rawScoreBps: null,
+      verifiedScoreBps: null,
+      confidenceBps: null,
+      decision: "ALLOW",
+      decisionReasons: ["REPUTATION_GATE_DISABLED"],
+      identityMatched: true,
+      offerRiskFlags: [],
+    });
+  });
+
   it("returns the canonical offer, recomputed identity, and reputation decision", async () => {
     const scenario = createDeterministicScenario(
       "honest-service",

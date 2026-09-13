@@ -8,7 +8,7 @@ import { evaluatePolicy, hashPolicy } from "./evaluate-policy";
 
 function assessment(
   scoreBps: number | null,
-  confidenceBps: number,
+  confidenceBps: number | null,
   model: ReputationModel = "B3_REPUGATE",
 ): ReputationAssessment {
   return {
@@ -23,6 +23,17 @@ function assessment(
 }
 
 describe("policy evaluation", () => {
+  it("allows B0 without a reputation score after shared binding checks pass", () => {
+    expect(
+      evaluatePolicy({
+        assessment: assessment(null, null, "B0_NO_GATE"),
+      }),
+    ).toMatchObject({
+      decision: "ALLOW",
+      reasons: ["REPUTATION_GATE_DISABLED"],
+    });
+  });
+
   it("uses inclusive ALLOW boundaries", () => {
     expect(
       evaluatePolicy({ assessment: assessment(7_000, 6_000) }).decision,
@@ -89,6 +100,13 @@ describe("policy evaluation", () => {
       "OFFER_RISK:AMOUNT_MISMATCH",
       "OFFER_RISK:PAY_TO_MISMATCH",
     ]);
+
+    expect(
+      evaluatePolicy({
+        assessment: assessment(null, null, "B0_NO_GATE"),
+        offerRiskFlags: ["OFFER_HASH_MISMATCH"],
+      }).decision,
+    ).toBe("BLOCK");
   });
 
   it("hashes equivalent policy values deterministically", () => {

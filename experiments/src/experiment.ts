@@ -13,6 +13,7 @@ import type {
 } from "@repugate/core";
 
 export const EXPERIMENT_MODELS = [
+  "B0_NO_GATE",
   "B1_RAW",
   "B2_GROUNDED",
   "B3_REPUGATE",
@@ -38,7 +39,7 @@ export interface ExperimentResultRow {
   paymentAuthorized: boolean;
   rawScoreBps: number | null;
   verifiedScoreBps: number | null;
-  confidenceBps: number;
+  confidenceBps: number | null;
   distinctReviewerCount: number;
   acceptedFeedbackCount: number;
   rejectedFeedbackCount: number;

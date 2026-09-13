@@ -23,7 +23,11 @@ interface ServiceDto {
 interface EvaluationDto {
   decisionId: string;
   evaluation: {
+    model: string;
     decision: "ALLOW" | "REVIEW" | "BLOCK";
+    rawScoreBps: number | null;
+    verifiedScoreBps: number | null;
+    confidenceBps: number | null;
     offerHash: string;
     policyHash: string;
     identity: { identityEpoch: string };
@@ -270,6 +274,21 @@ function consumptionPayload(grant: NonNullable<EvaluationDto["grant"]>) {
 }
 
 describe("RepuGate API", () => {
+  it("issues a shared payment-path grant for B0 without a reputation score", async () => {
+    const instance = createApp();
+    const created = await evaluate(instance, "honest-service", "B0_NO_GATE");
+
+    expect(created.statusCode).toBe(201);
+    expect(created.body.evaluation).toMatchObject({
+      model: "B0_NO_GATE",
+      decision: "ALLOW",
+      rawScoreBps: null,
+      verifiedScoreBps: null,
+      confidenceBps: null,
+    });
+    expect(created.body.grant).not.toBeNull();
+  });
+
   it("evaluates, issues an ALLOW grant, and retrieves the decision", async () => {
     const instance = createApp();
     const created = await evaluate(instance);

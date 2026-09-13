@@ -3,6 +3,7 @@ import { z } from "zod";
 import generatedReport from "../data/experiment-results.generated.json";
 
 const modelSchema = z.enum([
+  "B0_NO_GATE",
   "B1_RAW",
   "B2_GROUNDED",
   "B3_REPUGATE",
@@ -26,7 +27,7 @@ const resultRowSchema = z
     paymentAuthorized: z.boolean(),
     rawScoreBps: z.number().int().min(0).max(10_000).nullable(),
     verifiedScoreBps: z.number().int().min(0).max(10_000).nullable(),
-    confidenceBps: z.number().int().min(0).max(10_000),
+    confidenceBps: z.number().int().min(0).max(10_000).nullable(),
     distinctReviewerCount: z.number().int().nonnegative(),
     acceptedFeedbackCount: z.number().int().nonnegative(),
     rejectedFeedbackCount: z.number().int().nonnegative(),
@@ -54,7 +55,7 @@ const reportSchema = z
       .object({
         schemaVersion: z.literal(1),
         dataset: z.literal("presentation-fixtures-v1"),
-        models: z.array(modelSchema).length(4),
+        models: z.array(modelSchema).length(5),
         scenarios: z.array(scenarioSchema).length(5),
         policy: z
           .object({
@@ -66,8 +67,8 @@ const reportSchema = z
           .strict(),
       })
       .strict(),
-    results: z.array(resultRowSchema).length(20),
-    summary: z.array(summarySchema).length(4),
+    results: z.array(resultRowSchema).length(25),
+    summary: z.array(summarySchema).length(5),
   })
   .strict();
 

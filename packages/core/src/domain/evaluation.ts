@@ -6,6 +6,7 @@ import type {
 } from "./types";
 
 export type ReputationModel =
+  | "B0_NO_GATE"
   | "B1_RAW"
   | "B2_GROUNDED"
   | "B3_REPUGATE"
@@ -58,7 +59,7 @@ export interface FeedbackEvaluation {
 export interface ReputationAssessment {
   model: ReputationModel;
   scoreBps: number | null;
-  confidenceBps: number;
+  confidenceBps: number | null;
   distinctReviewerCount: number;
   acceptedFeedback: FeedbackEvaluation[];
   rejectedFeedback: FeedbackEvaluation[];
@@ -82,7 +83,7 @@ export interface ReputationEvaluationResult {
   model: ReputationModel;
   rawScoreBps: number | null;
   verifiedScoreBps: number | null;
-  confidenceBps: number;
+  confidenceBps: number | null;
   distinctReviewerCount: number;
   acceptedFeedback: FeedbackEvaluation[];
   rejectedFeedback: FeedbackEvaluation[];

@@ -3,6 +3,7 @@ import type {
   OfferEvaluationResult,
   OfferRiskFlag,
   PolicyConfig,
+  ReputationEvaluationResult,
   ReputationModel,
 } from "../domain/evaluation";
 import type {
@@ -184,30 +185,43 @@ export async function evaluateOffer(
     resourceUrl: canonicalized.offer.resourceUrl,
     identity,
   });
-  const feedback = await ports.feedbackReader.listQualityFeedback(
-    canonicalized.offer.agent,
-  );
-  const reputationInput = {
-    feedback,
-    identity,
-    tag1: input.tag1,
-    tag2: input.tag2,
+  const policyInput = {
     policy: input.policy,
     identityMatched,
     offerRiskFlags,
   };
-  const reputation =
-    input.model === "B1_RAW"
-      ? await evaluateReputation({
-          ...reputationInput,
-          model: "B1_RAW",
-        })
-      : await evaluateReputation({
-          ...reputationInput,
-          model: input.model,
-          paymentProofVerifier: ports.paymentProofVerifier,
-          receiptUsageReader: ports.receiptUsageReader,
-        });
+  let reputation: ReputationEvaluationResult;
+
+  if (input.model === "B0_NO_GATE") {
+    reputation = await evaluateReputation({
+      ...policyInput,
+      model: "B0_NO_GATE",
+    });
+  } else {
+    const feedback = await ports.feedbackReader.listQualityFeedback(
+      canonicalized.offer.agent,
+    );
+    const reputationInput = {
+      ...policyInput,
+      feedback,
+      identity,
+      tag1: input.tag1,
+      tag2: input.tag2,
+    };
+
+    reputation =
+      input.model === "B1_RAW"
+        ? await evaluateReputation({
+            ...reputationInput,
+            model: "B1_RAW",
+          })
+        : await evaluateReputation({
+            ...reputationInput,
+            model: input.model,
+            paymentProofVerifier: ports.paymentProofVerifier,
+            receiptUsageReader: ports.receiptUsageReader,
+          });
+  }
 
   return {
     ...reputation,

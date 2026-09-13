@@ -20,6 +20,7 @@ export const evaluationRequestSchema = z
   .object({
     buyer: evmAddressSchema,
     model: z.enum([
+      "B0_NO_GATE",
       "B1_RAW",
       "B2_GROUNDED",
       "B3_REPUGATE",

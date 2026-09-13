@@ -13,6 +13,25 @@ import {
 import { evaluateReputation } from "./evaluate-reputation";
 
 describe("unified reputation evaluation", () => {
+  it("returns an explicit no-reputation B0 decision", async () => {
+    const result = await evaluateReputation({ model: "B0_NO_GATE" });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        model: "B0_NO_GATE",
+        rawScoreBps: null,
+        verifiedScoreBps: null,
+        confidenceBps: null,
+        distinctReviewerCount: 0,
+        acceptedFeedback: [],
+        rejectedFeedback: [],
+        riskFlags: [],
+        decision: "ALLOW",
+        decisionReasons: ["REPUTATION_GATE_DISABLED"],
+      }),
+    );
+  });
+
   it("shows why raw B1 can allow an attack that both grounded models block", async () => {
     const feedback = REVIEWERS.map((clientAddress, index) =>
       makeFeedback({

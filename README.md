@@ -20,9 +20,10 @@ The implemented experiment deliberately calculates one semantic dimension:
 `tag2 = inference` to select the AI-inference service subtype; `inference` is a
 filter, not a second score.
 
-Keeping one dimension makes the B1/B2/B3 comparison interpretable: each model
-receives ratings with the same meaning, and the experiment changes evidence
-verification and aggregation rather than the target metric. Identity binding,
+Keeping one dimension makes the B1/B2/B3 reputation comparison interpretable:
+each model receives ratings with the same meaning, and the experiment changes
+evidence verification and aggregation rather than the target metric. B0 is the
+no-reputation reference baseline. Identity binding,
 payment validity, reviewer diversity, and confidence are trust or risk signals,
 not extra quality dimensions. Latency, uptime, success rate, price, and revenue
 have different units and must be normalized and evaluated separately instead of
@@ -51,19 +52,21 @@ uses that installation instead.
 
 Recommended presentation checks:
 
-1. Run `Honest service` with either `B3 · Beta` or `B3 · Dirichlet`: the
+1. Run `Honest service` with `B0 · No rep.`: no reputation score is produced,
+   but the common exact-offer and one-use Grant path still authorizes payment.
+2. Run `Honest service` with either `B3 · Beta` or `B3 · Dirichlet`: the
    decision is `ALLOW`, the wallet signs once, the independent Provider receives
    an initial 402 request and one paid retry, and the payment ends in
    `SETTLEMENT_PENDING` for reconciliation.
-2. Run `Ungrounded ratings` with B1, then B2: B1 pays, while B2 rejects feedback
+3. Run `Ungrounded ratings` with B1, then B2: B1 pays, while B2 rejects feedback
    without verified payment evidence and never calls the wallet.
-3. Run `Reviewer concentration` with B2, then either B3 model: B2 pays because
+4. Run `Reviewer concentration` with B2, then either B3 model: B2 pays because
    every receipt is valid, while both B3 models cap repeated reviewer influence
    and return `BLOCK`.
-4. Run `Receipt replay` with B2 or B3: one reused receipt cannot create five trusted
+5. Run `Receipt replay` with B2 or B3: one reused receipt cannot create five trusted
    reviews.
-5. Run `Offer substitution` with B3: the offer hash mismatch stops the flow
-   before Grant consumption and signing.
+6. Run `Offer substitution` with B0 or any reputation model: the shared offer
+   hash check stops the flow before Grant consumption and signing.
 
 ## Optional read-only ERC-8004 mode
 
@@ -100,7 +103,7 @@ available.
 ./pnpmw experiment
 ```
 
-The command runs B1, B2, B3-Beta, and B3-Dirichlet against the same five
+The command runs B0, B1, B2, B3-Beta, and B3-Dirichlet against the same five
 deterministic scenarios through the production `evaluateOffer()` path. It
 writes a JSON report and CSV table to `data/results/` and refreshes the
 generated report bundled by the Web Attack Lab. No Web server, wallet, testnet,

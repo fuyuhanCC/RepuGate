@@ -12,14 +12,21 @@ async function run(
 }
 
 describe("deterministic presentation scenarios", () => {
-  it("allows honest payment-grounded feedback under all four models", async () => {
-    const [b1, b2, b3, dirichlet] = await Promise.all([
+  it("allows the honest service under all five models", async () => {
+    const [b0, b1, b2, b3, dirichlet] = await Promise.all([
+      run("honest-service", "B0_NO_GATE"),
       run("honest-service", "B1_RAW"),
       run("honest-service", "B2_GROUNDED"),
       run("honest-service", "B3_REPUGATE"),
       run("honest-service", "B3_DIRICHLET"),
     ]);
 
+    expect(b0).toMatchObject({
+      rawScoreBps: null,
+      verifiedScoreBps: null,
+      confidenceBps: null,
+      decision: "ALLOW",
+    });
     expect(b1).toMatchObject({ rawScoreBps: 9_000, decision: "ALLOW" });
     expect(b2).toMatchObject({
       verifiedScoreBps: 9_000,
@@ -33,6 +40,32 @@ describe("deterministic presentation scenarios", () => {
       verifiedScoreBps: 7_400,
       decision: "ALLOW",
     });
+  });
+
+  it("shows B0 paying manipulated services without reading reputation", async () => {
+    const results = await Promise.all([
+      run("ungrounded-feedback", "B0_NO_GATE"),
+      run("receipt-replay", "B0_NO_GATE"),
+      run("reviewer-concentration", "B0_NO_GATE"),
+    ]);
+
+    for (const result of results) {
+      expect(result).toMatchObject({
+        decision: "ALLOW",
+        rawScoreBps: null,
+        verifiedScoreBps: null,
+        confidenceBps: null,
+        acceptedFeedback: [],
+        rejectedFeedback: [],
+      });
+    }
+  });
+
+  it("shows the shared exact-offer binding blocking substitution under B0", async () => {
+    const result = await run("offer-substitution", "B0_NO_GATE");
+
+    expect(result.decision).toBe("BLOCK");
+    expect(result.offerRiskFlags).toContain("OFFER_HASH_MISMATCH");
   });
 
   it("shows B1 allowing high ungrounded feedback while B2 and B3 block it", async () => {

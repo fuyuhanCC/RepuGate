@@ -130,7 +130,7 @@ main { margin: 0 auto; max-width: 1480px; padding: 0 clamp(24px, 5vw, 72px) 100p
 .control-group { display: flex; flex-direction: column; gap: 9px; }
 .control-group label { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; }
 .segmented { background: #07120e; border: 1px solid var(--line); display: flex; padding: 3px; }
-.segmented button { background: transparent; border: 0; color: var(--muted); cursor: pointer; font-size: 11px; min-width: 102px; padding: 11px 14px; }
+.segmented button { background: transparent; border: 0; color: var(--muted); cursor: pointer; flex: 1 1 0; font-size: 10px; min-width: 94px; padding: 11px 12px; white-space: nowrap; }
 .segmented button.active { background: var(--surface-3); color: var(--green); }
 .budget-input { align-items: center; border-bottom: 1px solid var(--line-strong); display: flex; max-width: 380px; }
 .budget-input input { background: transparent; border: 0; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 18px; min-width: 100px; outline: 0; padding: 8px 0; width: 100%; }
@@ -196,7 +196,7 @@ main { margin: 0 auto; max-width: 1480px; padding: 0 clamp(24px, 5vw, 72px) 100p
 .experiment-provenance { align-items: flex-end; display: flex; flex-direction: column; gap: 7px; }
 .experiment-provenance span { color: var(--muted); font-size: 10px; text-transform: uppercase; }
 .experiment-provenance code { color: var(--green-strong); font-size: 10px; }
-.experiment-summary { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
+.experiment-summary { display: grid; gap: 10px; grid-template-columns: repeat(5, 1fr); }
 .experiment-model { background: rgba(12, 28, 23, 0.65); border: 1px solid var(--line); padding: 22px; }
 .experiment-model-heading { align-items: baseline; display: flex; justify-content: space-between; margin-bottom: 26px; }
 .experiment-model-heading strong { font-size: 15px; }
@@ -259,6 +259,9 @@ footer { border-top: 1px solid var(--line); color: var(--muted-2); display: flex
 
 @media (max-width: 1050px) {
   .scenario-grid { grid-template-columns: repeat(2, 1fr); }
+  .control-strip { align-items: stretch; grid-template-columns: 1fr; }
+  .budget-input { max-width: none; }
+  .run-button { width: 100%; }
   .metrics { grid-template-columns: repeat(3, 1fr); }
   .metric-card:nth-child(3) { border-right: 0; }
   .metric-card:nth-child(n+4) { border-top: 1px solid var(--line); }
@@ -278,6 +281,8 @@ footer { border-top: 1px solid var(--line); color: var(--muted-2); display: flex
   .section-heading > p { text-align: left; }
   .scenario-grid { grid-template-columns: 1fr; }
   .control-strip { align-items: stretch; grid-template-columns: 1fr; }
+  .segmented { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .segmented button { min-width: 0; }
   .run-button { width: 100%; }
   .budget-input { max-width: none; }
   .metrics { grid-template-columns: repeat(2, 1fr); }

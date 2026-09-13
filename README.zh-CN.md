@@ -19,8 +19,9 @@ RepuGate 是面向 AI Agent 的 x402 声誉门控付款客户端。它评估 ERC
 `tag2 = inference` 选择 AI inference 服务子类型；`inference` 是过滤条件，不是第二个
 分数。
 
-单一维度使 B1/B2/B3 对比保持可解释：所有模型接收语义相同的评价，实验改变的是证据
-验证和聚合方法，而不是被测指标。身份绑定、付款有效性、reviewer 多样性和 confidence
+单一维度使 B1/B2/B3 声誉模型的对比保持可解释：所有模型接收语义相同的评价，实验
+改变的是证据验证和聚合方法，而不是被测指标；B0 则是不使用声誉的参考基线。身份绑定、
+付款有效性、reviewer 多样性和 confidence
 属于信任或风险信号，并非额外质量维度。latency、uptime、success rate、price 和
 revenue 具有不同单位，未来应分别标准化和评估，不能直接与 quality 求平均。Reviewer
 trust weighting 和 time decay 已在设计文档中列为 quality 维度内部的 future work。
@@ -45,16 +46,18 @@ Registry 或外部 metadata。
 
 推荐 Presentation 检查流程：
 
-1. 使用 `B3 · Beta` 或 `B3 · Dirichlet` 运行 `Honest service`：决策为 `ALLOW`，
+1. 使用 `B0 · No rep.` 运行 `Honest service`：系统不产生声誉分数，但仍通过公共的准确
+   报价绑定和一次性 Grant 路径授权付款。
+2. 使用 `B3 · Beta` 或 `B3 · Dirichlet` 运行 `Honest service`：决策为 `ALLOW`，
    Wallet 只签名一次；独立 Provider 收到一次初始 402 请求和一次带付款的重试；付款
    最后进入等待核对的 `SETTLEMENT_PENDING`。
-2. 分别使用 B1 和 B2 运行 `Ungrounded ratings`：B1 允许付款，B2 拒绝没有有效付款
+3. 分别使用 B1 和 B2 运行 `Ungrounded ratings`：B1 允许付款，B2 拒绝没有有效付款
    证据的评价，而且不会调用 Wallet。
-3. 分别使用 B2 和任一 B3 运行 `Reviewer concentration`：B2 因所有 receipt 有效而
+4. 分别使用 B2 和任一 B3 运行 `Reviewer concentration`：B2 因所有 receipt 有效而
    允许付款；两种 B3 都限制同一 reviewer 的重复影响并返回 `BLOCK`。
-4. 使用 B2 或 B3 运行 `Receipt replay`：一份重复 receipt 不能产生五条可信评价。
-5. 使用 B3 运行 `Offer substitution`：offer hash 不匹配会在消费 Grant 和签名前停止
-   付款流程。
+5. 使用 B2 或 B3 运行 `Receipt replay`：一份重复 receipt 不能产生五条可信评价。
+6. 使用 B0 或任一声誉模型运行 `Offer substitution`：公共的 offer hash 检查会在消费
+   Grant 和签名前停止付款流程。
 
 ## 可选的只读 ERC-8004 模式
 
@@ -85,7 +88,7 @@ Presentation Demo。
 ./pnpmw experiment
 ```
 
-该命令让 B1、B2、B3-Beta 和 B3-Dirichlet 通过生产使用的 `evaluateOffer()` 路径运行
+该命令让 B0、B1、B2、B3-Beta 和 B3-Dirichlet 通过生产使用的 `evaluateOffer()` 路径运行
 相同的五个确定性场景。它把 JSON 与 CSV 结果写入 `data/results/`，并更新 Web Attack
 Lab 打包的生成结果。执行过程不需要 Web Server、Wallet、测试网或数据库。
 

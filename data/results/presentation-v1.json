@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
-  "runId": "presentation-2dd1fe75ba52",
-  "configHash": "sha256:2dd1fe75ba5250f0ff85b22388045e423a3bf305e65af9d7935853adf8340988",
+  "runId": "presentation-b5531cfa5047",
+  "configHash": "sha256:b5531cfa50474a490d3f8f16dc67b6686c33d966b15d9dfa4c29a829a3a2f8d6",
   "config": {
     "schemaVersion": 1,
     "dataset": "presentation-fixtures-v1",
     "models": [
+      "B0_NO_GATE",
       "B1_RAW",
       "B2_GROUNDED",
       "B3_REPUGATE",
@@ -26,6 +27,22 @@
     }
   },
   "results": [
+    {
+      "scenarioId": "honest-service",
+      "scenarioTitle": "Honest paid service",
+      "scenarioKind": "CONTROL",
+      "model": "B0_NO_GATE",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": null,
+      "verifiedScoreBps": null,
+      "confidenceBps": null,
+      "distinctReviewerCount": 0,
+      "acceptedFeedbackCount": 0,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [],
+      "offerRiskFlags": []
+    },
     {
       "scenarioId": "honest-service",
       "scenarioTitle": "Honest paid service",
@@ -86,6 +103,22 @@
       "confidenceBps": 6000,
       "distinctReviewerCount": 3,
       "acceptedFeedbackCount": 3,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "ungrounded-feedback",
+      "scenarioTitle": "Ungrounded feedback attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B0_NO_GATE",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": null,
+      "verifiedScoreBps": null,
+      "confidenceBps": null,
+      "distinctReviewerCount": 0,
+      "acceptedFeedbackCount": 0,
       "rejectedFeedbackCount": 0,
       "riskFlags": [],
       "offerRiskFlags": []
@@ -170,6 +203,22 @@
       "scenarioId": "receipt-replay",
       "scenarioTitle": "Receipt replay attack",
       "scenarioKind": "ADVERSARIAL",
+      "model": "B0_NO_GATE",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": null,
+      "verifiedScoreBps": null,
+      "confidenceBps": null,
+      "distinctReviewerCount": 0,
+      "acceptedFeedbackCount": 0,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "receipt-replay",
+      "scenarioTitle": "Receipt replay attack",
+      "scenarioKind": "ADVERSARIAL",
       "model": "B1_RAW",
       "decision": "ALLOW",
       "paymentAuthorized": true,
@@ -245,6 +294,22 @@
       "scenarioId": "reviewer-concentration",
       "scenarioTitle": "Reviewer concentration",
       "scenarioKind": "ADVERSARIAL",
+      "model": "B0_NO_GATE",
+      "decision": "ALLOW",
+      "paymentAuthorized": true,
+      "rawScoreBps": null,
+      "verifiedScoreBps": null,
+      "confidenceBps": null,
+      "distinctReviewerCount": 0,
+      "acceptedFeedbackCount": 0,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [],
+      "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "reviewer-concentration",
+      "scenarioTitle": "Reviewer concentration",
+      "scenarioKind": "ADVERSARIAL",
       "model": "B1_RAW",
       "decision": "ALLOW",
       "paymentAuthorized": true,
@@ -304,6 +369,24 @@
       "rejectedFeedbackCount": 0,
       "riskFlags": [],
       "offerRiskFlags": []
+    },
+    {
+      "scenarioId": "offer-substitution",
+      "scenarioTitle": "Offer substitution attack",
+      "scenarioKind": "ADVERSARIAL",
+      "model": "B0_NO_GATE",
+      "decision": "BLOCK",
+      "paymentAuthorized": false,
+      "rawScoreBps": null,
+      "verifiedScoreBps": null,
+      "confidenceBps": null,
+      "distinctReviewerCount": 0,
+      "acceptedFeedbackCount": 0,
+      "rejectedFeedbackCount": 0,
+      "riskFlags": [],
+      "offerRiskFlags": [
+        "OFFER_HASH_MISMATCH"
+      ]
     },
     {
       "scenarioId": "offer-substitution",
@@ -379,6 +462,13 @@
     }
   ],
   "summary": [
+    {
+      "model": "B0_NO_GATE",
+      "honestScenarioAllowRateBps": 10000,
+      "attackScenarioAllowRateBps": 7500,
+      "attackScenariosAllowed": 3,
+      "attackScenarioCount": 4
+    },
     {
       "model": "B1_RAW",
       "honestScenarioAllowRateBps": 10000,

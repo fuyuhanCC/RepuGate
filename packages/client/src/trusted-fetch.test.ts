@@ -143,6 +143,10 @@ class FakeEvaluationApi implements EvaluationApiPort {
     ) => AuthorizedPaymentIntent,
   ) {}
 
+  get lastEvaluation(): EvaluationResponse | null {
+    return this.evaluationResponse;
+  }
+
   async evaluateOffer(request: EvaluationRequest): Promise<EvaluationResponse> {
     this.evaluationRequests.push(request);
     const scenario = createDeterministicScenario(
@@ -474,6 +478,34 @@ describe("trustedFetch", () => {
     );
 
     expect(result.kind).toBe("PAID");
+    expect(wallet.signCalls).toBe(1);
+  });
+
+  it("runs B0 through the same one-use payment path without a reputation score", async () => {
+    const required = paymentRequired("ungrounded-feedback");
+    const fetchPort = new FakeFetch([
+      requiredResponse(required),
+      settledResponse(required),
+    ]);
+    const wallet = new FakeWallet();
+    const api = new FakeEvaluationApi();
+
+    const result = await trustedFetch(
+      required.resource.url,
+      { method: "POST", body: BODY },
+      options(required, "ungrounded-feedback", "B0_NO_GATE"),
+      dependencies(fetchPort, api, wallet),
+    );
+
+    expect(result.kind).toBe("PAID");
+    expect(api.lastEvaluation?.evaluation).toMatchObject({
+      model: "B0_NO_GATE",
+      rawScoreBps: null,
+      verifiedScoreBps: null,
+      confidenceBps: null,
+      decision: "ALLOW",
+    });
+    expect(api.consumeRequests).toHaveLength(1);
     expect(wallet.signCalls).toBe(1);
   });
 

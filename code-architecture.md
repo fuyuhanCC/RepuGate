@@ -7,7 +7,7 @@
 The code architecture must satisfy these goals:
 
 1. The presentation platform runs the complete `service discovery → trust evaluation → ALLOW/BLOCK → wallet authorization → x402 response` flow.
-2. B1, B2, and B3 use the same scoring and policy code as the demo; there is no separate experiment-only algorithm.
+2. B0, B1, B2, and B3 use the same evaluation and policy code as the demo; there is no separate experiment-only algorithm.
 3. Deterministic demo, experiment, and Base Sepolia Live modes switch through adapters. Core does not know whether data came from fixtures, SQLite, or RPC.
 4. The Agent receives only a restricted `TrustedPaymentPort`, never MetaMask or an arbitrary signing capability.
 5. Offer selection, offer hashing, Grant consumption, and payment-state transitions each have one authoritative implementation.
@@ -76,7 +76,7 @@ RepuGate/
 ├── experiments/
 │   └── src/
 │       ├── scenarios/                   # ungrounded/replay/substitution
-│       ├── baselines/                   # B1/B2/B3 run configuration
+│       ├── baselines/                   # B0/B1/B2/B3 run configuration
 │       ├── fixtures/
 │       ├── metrics/
 │       ├── run.ts
@@ -142,6 +142,7 @@ Core types remain framework-independent:
 ```ts
 type Decision = "ALLOW" | "REVIEW" | "BLOCK";
 type Baseline =
+  | "B0_NO_GATE"    // no reputation score or evidence processing
   | "B1_RAW"
   | "B2_GROUNDED"
   | "B3_REPUGATE"   // Beta(1,1) posterior mean
@@ -243,9 +244,9 @@ Its internal order is fixed:
 validate and canonicalize offer
   → resolve ERC-8004 identity
   → derive IdentityEpoch
-  → load feedback for one semantic dimension
-  → verify payment evidence and prior usage
-  → calculate B1/B2/B3 scores
+  → for B1–B3, load feedback for one semantic dimension
+  → for B2/B3, verify payment evidence and prior usage
+  → calculate B1/B2/B3 scores, or no score for B0
   → apply policy
   → return an explainable EvaluationResult
 ```
@@ -427,7 +428,7 @@ The Agent may choose a service and budget. It cannot set a decision to `ALLOW` a
 
 - Service Explorer displays catalog data and both reputation scores.
 - Trust Evaluation drives one `trustedFetch` flow and shows its stages, evidence, and errors.
-- Attack Lab reads frozen result JSON and visualizes B1/B2/B3. It does not run batch experiments in the browser.
+- Attack Lab reads frozen result JSON and visualizes B0/B1/B2/B3. It does not run batch experiments in the browser.
 
 Components do not call raw `fetch`, RPC, or MetaMask directly. Those operations pass through the API client, `trustedFetch`, and WalletPort adapter respectively.
 
@@ -470,7 +471,7 @@ The experiment runner starts neither Web nor the Live API. It calls the same `ev
 ```text
 scenario + seed
   → generate service, feedback, and receipt fixtures
-  → run B1, B2, and B3 over the same samples
+  → run B0, B1, B2, and B3 over the same samples
   → calculate malicious payment rate / honest approval rate / replay acceptance
   → write JSON/CSV with configHash
   → Attack Lab renders results read-only
@@ -578,7 +579,7 @@ Every log carries `requestId`; evaluation logs carry `decisionId`; payment logs 
 
 - canonical offer golden vectors
 - IdentityEpoch vectors
-- B1/B2/B3 score and confidence
+- B0 no-score marker and B1/B2/B3 score/confidence
 - policy threshold boundaries
 - Grant expiry/mismatch
 - payment event reducer
@@ -631,8 +632,8 @@ Private configuration exists only in server-process environment variables. The f
 
 Implementation proceeds in vertical slices:
 
-1. `core` types, schemas, canonicalization, B1/B2/B3, policy, and unit tests.
-2. Fixture adapters and `evaluateOffer()` to produce deterministic B1/B2/B3 results.
+1. `core` types, schemas, canonicalization, B0/B1/B2/B3, policy, and unit tests.
+2. Fixture adapters and `evaluateOffer()` to produce deterministic B0/B1/B2/B3 results.
 3. API and SQLite for decisions, one-use Grants, and payment state.
 4. Web and FakeWalletPort for an end-to-end demo without testnet dependency.
 5. Provider and x402 client adapter for the real `402` flow.
@@ -647,7 +648,7 @@ Before feature expansion, the code must satisfy all of the following:
 
 - No Agent payment path in Web bypasses `trustedFetch`.
 - Core unit tests run without network, database, or React.
-- Demo and experiments call the same B1/B2/B3 `evaluateOffer()` entry point.
+- Demo and experiments call the same B0/B1/B2/B3 `evaluateOffer()` entry point.
 - Only one concurrent consumption of the same Grant succeeds.
 - The client cannot mark a payment `SETTLED` directly.
 - Changing any security-critical offer field changes `offerHash`.

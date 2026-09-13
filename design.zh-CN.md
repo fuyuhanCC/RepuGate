@@ -188,7 +188,7 @@ Adapter 将外部数据转换成 Core 可以处理的标准化输入：
 
 3. **Attack Lab（攻击实验室）**
 
-   加载由命令行实验程序生成的可复现攻击结果，并使用图表和表格比较 B1、B2、B3-Beta 和 B3-Dirichlet。Presentation 模式使用固定的实验数据，避免演示结果依赖测试网状态。网页不直接启动长时间实验任务。
+   加载由命令行实验程序生成的可复现攻击结果，并使用图表和表格比较 B0、B1、B2、B3-Beta 和 B3-Dirichlet。Presentation 模式使用固定的实验数据，避免演示结果依赖测试网状态。网页不直接启动长时间实验任务。
 
 Trust Evaluation 页面可以包含付款凭证和审计详情抽屉。独立管理后台、用户管理系统和生产级分析平台不在项目范围内。
 
@@ -505,9 +505,9 @@ Evaluation API 是 `payment_attempts` 的唯一持久化写入方。浏览器通
 ## 8. 声誉模型与实验基线
 
 这些基线用于比较“声誉证据如何改变付款决策”，必须与 RepuGate 的公共付款安全机制
-分开理解。B1、B2、B3 都运行在同一条门控流程中，额外共享 canonical offer、身份
-绑定、用户预算、钱包网络、一次性 Grant、重定向和付款状态检查。因此，如果 B1/B2/B3
-都阻止报价替换，这证明的是公共网关有效，而不是 B3 评分公式优于 B1/B2。
+分开理解。B0 到 B3 都运行在同一条门控流程中，额外共享 canonical offer、身份绑定、
+用户预算、钱包网络、一次性 Grant、重定向和付款状态检查。因此，如果 B0/B1/B2/B3
+都阻止报价替换，这证明的是公共网关有效，而不是某个声誉模型更好。
 
 ### 当前评分范围
 
@@ -515,34 +515,35 @@ Evaluation API 是 `payment_attempts` 的唯一持久化写入方。浏览器通
 0–100 分。确定性场景还要求 `tag2 = inference`，用于识别 AI inference 服务子类型；
 `inference` 是范围过滤条件，不是第二个数值评分维度。
 
-这是本项目的设计选择，而不是 ERC-8004 的限制。它使 B1/B2/B3 构成受控比较：所有
-基线估计同一种服务属性，实验变量只是评价如何被验证和聚合。身份绑定、付款有效性、
-reviewer 多样性和 confidence 属于证据或风险信号，因此与 quality 分数分开处理。
+这是本项目的设计选择，而不是 ERC-8004 的限制。它使 B1/B2/B3 声誉模型构成受控
+比较：这些模型估计同一种服务属性，实验变量只是评价如何被验证和聚合；B0 是不使用
+声誉的参考基线。身份绑定、付款有效性、reviewer 多样性和 confidence 属于证据或风险
+信号，因此与 quality 分数分开处理。
 
 latency、uptime、success rate、price 和 revenue 的单位、方向和语义均不相同。直接将
 它们与 quality 混合会得到任意的综合分数，使实验结论难以解释。未来的多维模型应分别
 定义并标准化各维度，输出各维度结果；只有在声明权重的明确策略中才能进一步组合。
 第 15.1 节说明了在当前 quality 维度内部扩展证据权重的兼容方案。
 
-### B0：No Gate（参考基线，尚未实现）
+### B0：No Reputation Gate（已实现的参考基线）
 
-**目的。** B0 用来衡量 Buyer 只使用 x402 付款协议检查、完全不执行 ERC-8004
-信任判断时的结果。
+**目的。** B0 用来衡量 Buyer 使用相同的受保护 x402 付款路径、但完全不执行基于声誉
+的信任判断时会发生什么。
 
-**输入与计算。** B0 不读取身份或评价，不计算 score/confidence，也不验证评价证据。
-未来为了公平比较，B0 应保留基础协议检查，包括 runtime Schema、支持的
-scheme/network/asset、预算与 timeout 上限、钱包网络匹配；但跳过声誉评估以及与声誉
-决策绑定的 Grant 签发。
+**输入与计算。** B0 仍解析服务身份，但只用于公共的 offer/payee/endpoint 绑定；它不
+加载 feedback、不计算 score/confidence，也不调用付款证据验证器。score 和 confidence
+明确返回 `null`，而不是用 0 冒充没有测量的数据。
 
-**决策。** 只要报价格式有效且不超过 Buyer 配置的付款限制，就授权付款。没有声誉的
-Provider、声誉被操纵的 Provider 和诚实 Provider 会得到相同待遇。
+**决策。** 公共的报价、身份、预算、网络和重定向检查全部通过后，B0 返回 `ALLOW`，
+原因为 `REPUTATION_GATE_DISABLED`。API 随后签发与其他基线相同的准确报价绑定、短期、
+一次性 EvaluationGrant。因此，没有声誉、声誉被操纵和诚实的 Provider 会得到相同待遇。
 
-**能够与不能防御的攻击。** B0 可以通过协议层拒绝格式错误、不支持或超预算的付款请求；
-但不能防御无付款刷分、receipt replay、评价者集中、付费 Sybil 自评、串谋、身份白洗，
-也不能判断服务是否可信。它没有可绑定到一次性 EvaluationGrant 的声誉决策。
+**能够与不能防御的攻击。** B0 继承公共网关对格式错误、预算、准确报价绑定、Grant
+重放和付款状态的检查；但不能防御无付款刷分、作为声誉证据的 receipt replay、评价者
+集中、付费 Sybil 自评、串谋、身份白洗，也不能判断服务是否可信。
 
-**实现状态。** B0 仍是扩展版报告实验的目标基线；当前 Presentation runner 运行
-B1、B2、B3-Beta 和 B3-Dirichlet，尚未实现 B0。
+**实现状态。** B0 已接入共享 Core evaluator、API、确定性 Buyer 流程、experiment
+runner 和 Attack Lab。
 
 ### B1：Raw ERC-8004 Reputation
 
@@ -777,21 +778,21 @@ score = P(Good | evidence) + P(Excellent | evidence)
 | 极少 reviewer 制造高分 | ✗ | ✗ | ✗ | ✓ | ✓ | 两种 B3 都把 confidence 用作 ALLOW 门槛 |
 | 多个真实付款且受同一资金方控制的 Sybil 钱包 | ✗ | ✗ | ✗ | 部分 | 部分 | 付款提高成本，但不能证明钱包独立 |
 | reviewer 串谋或真实顾客恶意评价 | ✗ | ✗ | ✗ | ✗ | ✗ | 付款证据不能证明评价内容诚实 |
-| 替换报价、收款方或 endpoint | ✗ | 公共网关 | 公共网关 | 公共网关 | 公共网关 | 来自 canonical offer/身份检查，而非评分 |
-| 重放 EvaluationGrant 或篡改授权 | 不适用 | 公共网关 | 公共网关 | 公共网关 | 公共网关 | 一次性 Grant 和逐字段 intent 复核 |
+| 替换报价、收款方或 endpoint | 公共网关 | 公共网关 | 公共网关 | 公共网关 | 公共网关 | 来自 canonical offer/身份检查，而非评分 |
+| 重放 EvaluationGrant 或篡改授权 | 公共网关 | 公共网关 | 公共网关 | 公共网关 | 公共网关 | 一次性 Grant 和逐字段 intent 复核 |
 
-### Bayesian 固定实验结果
+### 确定性固定实验结果
 
-下表把已实现的攻击 fixtures 与两种 Bayesian B3 和冻结门槛对应起来。由于 B0 尚未
-接入 runner，因此不列入结果表。
+下表把已实现的攻击 fixtures 与全部基线和冻结门槛对应起来。破折号表示 B0 有意不产生
+声誉分数。
 
-| Fixture | B1 | B2 | B3-Beta | B3-Dirichlet | 主要原因 |
-| --- | --- | --- | --- | --- | --- |
-| Honest（诚实场景） | ALLOW | ALLOW | ALLOW（74%） | ALLOW（76%） | 评价有效、有付款依据且 reviewer 足够分散 |
-| Ungrounded ratings（无付款评价） | ALLOW | BLOCK | BLOCK | BLOCK | B1 不要求付款证明；B2/B3 会过滤这些评价 |
-| Receipt replay（回执重放） | ALLOW | BLOCK | BLOCK（36.7%） | BLOCK（26.7%） | B2/B3 对重复付款回执只接纳一条评价 |
-| Reviewer concentration（评价者集中） | ALLOW | ALLOW | BLOCK（40%） | BLOCK（36%） | B3 消除同钱包的数量优势后无法通过分数门槛 |
-| Expected-offer mismatch（预期报价不匹配） | BLOCK | BLOCK | BLOCK | BLOCK | 公共 canonical-offer 网关在付款前阻止，与声誉分数无关 |
+| Fixture | B0 | B1 | B2 | B3-Beta | B3-Dirichlet | 主要原因 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Honest（诚实场景） | ALLOW（—） | ALLOW | ALLOW | ALLOW（74%） | ALLOW（76%） | B0 忽略声誉；其他模型接收诚实证据 |
+| Ungrounded ratings（无付款评价） | ALLOW（—） | ALLOW | BLOCK | BLOCK | BLOCK | B0/B1 不要求付款证明；B2/B3 过滤无付款评价 |
+| Receipt replay（回执重放） | ALLOW（—） | ALLOW | BLOCK | BLOCK（36.7%） | BLOCK（26.7%） | B2/B3 对重复付款回执只接纳一条评价 |
+| Reviewer concentration（评价者集中） | ALLOW（—） | ALLOW | ALLOW | BLOCK（40%） | BLOCK（36%） | B3 消除同钱包的数量优势后无法通过分数门槛 |
+| Expected-offer mismatch（预期报价不匹配） | BLOCK（—） | BLOCK | BLOCK | BLOCK | BLOCK | 公共 canonical-offer 网关在付款前阻止，与声誉分数无关 |
 
 ### 已批准的 Bayesian 决策策略
 
@@ -806,9 +807,9 @@ Bayesian 先验             Beta(1,1)；对称 Dirichlet(0.4 × 5)
 confidence               n / (n + 2)，n 为对应阶段的不同 reviewer 数量
 ```
 
-B1 和 B2 只使用分数门槛，confidence 仅作为诊断信息；两种 B3 必须同时满足分数和
-confidence 才能 `ALLOW`。分数达到 70% 但 B3 置信度不足时返回 `REVIEW`，分数
-低于 50% 时返回 `BLOCK`。对于三个已实现模型，任何身份或准确报价绑定失败都会
+B0 不使用声誉门槛。B1 和 B2 只使用分数门槛，confidence 仅作为诊断信息；两种 B3
+必须同时满足分数和 confidence 才能 `ALLOW`。分数达到 70% 但 B3 置信度不足时返回
+`REVIEW`，分数低于 50% 时返回 `BLOCK`。对于五个已实现模型，任何身份或准确报价绑定失败都会
 直接 `BLOCK`。这些策略参数和语义版本会被包含在 `policyHash` 中。
 
 当前代码与生成的 Presentation artifact 已在 v2 policy hash 语义下实现两种
@@ -982,8 +983,10 @@ RQ3、RQ4 以及重试行为的统计测量仍属于最终报告规模的实验�
 - 声誉风险标记和准确报价风险标记
 
 它还汇总每个模型的诚实场景放行率和对抗 fixture 放行率。当前
-`75% / 25% / 0% / 0%` 只表示 B1/B2/B3-Beta/B3-Dirichlet 分别放行四个
-固定 fixture 中的 `3 / 1 / 0 / 0` 个，不是总体统计估计。
+`75% / 75% / 25% / 0% / 0%` 只表示 B0/B1/B2/B3-Beta/B3-Dirichlet 分别
+放行四个固定 fixture 中的 `3 / 3 / 1 / 0 / 0` 个，不是总体统计估计。B0 和 B1 在
+这个小型数据集上相同，是因为三个声誉攻击都把原始分数抬高；扩展实验需要加入低声誉
+和无声誉对照，才能测量 B1 相比 B0 的额外行为。
 
 以下是报告规模的计划指标，当前 runner 尚不输出：带置信区间的诚实服务误拒绝率、
 生成样本上的无效评价/重放接受率、重复付款率、分数膨胀曲线、攻击成本、人工确认率、
@@ -997,21 +1000,22 @@ Bayesian 报告实验必须预先声明 sensitivity sweep，至少比较 `Beta(0
 
 ### 12.4 公平比较方式
 
-B1、B2 和两种 B3 必须在相同或接近的诚实服务通过率下进行比较，否则系统可能仅仅
-因为阻止了大量请求而显得安全。
+五种基线必须在相同或接近的诚实服务通过率下进行比较，否则系统可能仅仅因为阻止了
+大量请求而显得安全。
 
 核心比较问题是：
 
 ```text
 在诚实服务通过率相同的情况下：
-1. B2 相比 B1 能否减少无付款和凭证重放导致的付款？
-2. 两种 B3 相比 B2 能否减少评价者集中情况下的付款？
-3. Beta 的期望质量与 Dirichlet 的 Good-or-better 语义在诚实、冷启动和攻击分布下
+1. B1 使用原始声誉后，相比 B0 完全不门控会产生什么变化？
+2. B2 相比 B1 能否减少无付款和凭证重放导致的付款？
+3. 两种 B3 相比 B2 能否减少评价者集中情况下的付款？
+4. Beta 的期望质量与 Dirichlet 的 Good-or-better 语义在诚实、冷启动和攻击分布下
    分别有什么表现？
 ```
 
 当前 Presentation 对比是确定性功能基准：所有模型使用同一 fixture 和冻结策略，
-保存配置 hash 与原始 JSON/CSV，并且四个模型都放行唯一的诚实对照 fixture。
+保存配置 hash 与原始 JSON/CSV，并且五个模型都放行唯一的诚实对照 fixture。
 由于它只有一个诚实 fixture、四个对抗 fixture、没有随机采样，而且每个组合只运行
 一次，因此不能计算置信区间，也不能据此作总体统计结论。
 
@@ -1032,8 +1036,8 @@ B1、B2 和两种 B3 必须在相同或接近的诚实服务通过率下进行�
 每个配置重复运行 20 次
 ```
 
-当前 Presentation 数据集包含一个诚实对照和四个对抗 fixture，分别在 B1、B2、
-B3-Beta、B3-Dirichlet 下运行一次，共产生 20 行结果。
+当前 Presentation 数据集包含一个诚实对照和四个对抗 fixture，分别在 B0、B1、B2、
+B3-Beta、B3-Dirichlet 下运行一次，共产生 25 行结果。
 
 ## 13. Presentation MVP
 
@@ -1097,7 +1101,7 @@ RepuGate/
 │   ├── core/                      # 纯评分、Schema、规范化、Grant、Epoch、状态逻辑
 │   ├── client/                    # trustedFetch + GuardedPaymentClient
 │   └── x402/                      # 共享 wire headers、codec、Schema 与 payload 类型
-├── experiments/                  # B1/B2/B3、攻击场景和命令行运行程序
+├── experiments/                  # B0/B1/B2/B3、攻击场景和命令行运行程序
 ├── contracts/
 │   └── MockEIP3009USDC.sol        # 可选，仅用于本地协议测试
 ├── tests/
@@ -1171,7 +1175,7 @@ RepuGate/
 - 确定性本地 Demo
 - 可交互的浏览器前端展示平台
 - 可选的公共测试网演示
-- Presentation 使用 B1/B2/B3-Beta/B3-Dirichlet 基线，扩展版报告实验再加入 B0
+- Presentation 使用 B0/B1/B2/B3-Beta/B3-Dirichlet 基线
 - 至少三个可复现的攻击场景
 - 保存的实验配置和结果文件
 - 可以重新生成表格或图表的脚本
@@ -1206,7 +1210,7 @@ RepuGate/
 - Honest 和 Malicious 服务使用不同的 ERC-8004 身份、endpoint 和收款配置
 - 使用 React/Vite 构建同时支持确定性 Demo 和可选 Live 模式的前端展示平台
 - 使用 TypeScript、Node.js、viem、SQLite、Vitest 和 pnpm workspace
-- Pre 核心实验固定比较 B1、B2、B3-Beta 和 B3-Dirichlet，并演示无付款刷分、凭证重放、评价者集中和报价替换
+- Pre 核心实验固定比较 B0、B1、B2、B3-Beta 和 B3-Dirichlet，并演示无付款刷分、凭证重放、评价者集中和报价替换
 - 只声称 Payment-Grounded 和 Reviewer-Concentration-Aware
 - 不声称完全抵御 Sybil 攻击
 - 不声称付款或签名 delivery receipt 能证明 AI 输出的语义质量

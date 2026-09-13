@@ -92,6 +92,8 @@ export {
 export { assessB1RawReputation } from "./reputation/b1";
 export type { B1AssessmentInput } from "./reputation/b1";
 
+export { assessB0NoGate } from "./reputation/b0";
+
 export { assessB2GroundedReputation } from "./reputation/b2";
 export type { B2AssessmentInput } from "./reputation/b2";
 
@@ -125,6 +127,7 @@ export type { EvaluatePolicyInput } from "./policy/evaluate-policy";
 
 export { evaluateReputation } from "./evaluation/evaluate-reputation";
 export type {
+  B0ReputationEvaluationInput,
   B1ReputationEvaluationInput,
   B2ReputationEvaluationInput,
   B3DirichletReputationEvaluationInput,

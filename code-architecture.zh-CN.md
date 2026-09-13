@@ -7,7 +7,7 @@
 代码架构需要同时满足以下目标：
 
 1. 展示平台能够运行完整的 `服务发现 → 信任评估 → ALLOW/BLOCK → 钱包授权 → x402 响应` 流程。
-2. B1、B2 和 B3 必须调用与 Demo 相同的评分和策略代码，不能另写一套“实验版算法”。
+2. B0、B1、B2 和 B3 必须调用与 Demo 相同的评估和策略代码，不能另写一套“实验版算法”。
 3. 确定性 Demo、实验和 Base Sepolia Live 模式通过 Adapter 切换，Core 不感知数据来自 fixture、SQLite 还是 RPC。
 4. Agent 只能获得受限的 `TrustedPaymentPort`，不能直接获得 MetaMask 或任意签名能力。
 5. 报价选择、报价哈希、Grant 消费和付款状态都只有一个权威实现。
@@ -76,7 +76,7 @@ RepuGate/
 ├── experiments/
 │   └── src/
 │       ├── scenarios/                   # ungrounded/replay/substitution
-│       ├── baselines/                   # B1/B2/B3 运行配置
+│       ├── baselines/                   # B0/B1/B2/B3 运行配置
 │       ├── fixtures/
 │       ├── metrics/
 │       ├── run.ts
@@ -135,6 +135,7 @@ packages/client ────→ MetaMask / target Provider
 ```ts
 type Decision = "ALLOW" | "REVIEW" | "BLOCK";
 type Baseline =
+  | "B0_NO_GATE"    // 不计算声誉或处理评价证据
   | "B1_RAW"
   | "B2_GROUNDED"
   | "B3_REPUGATE"   // Beta(1,1) posterior mean
@@ -236,9 +237,9 @@ async function evaluateOffer(
 验证并规范化报价
   → 解析 ERC-8004 身份
   → 计算 IdentityEpoch
-  → 加载同一语义维度的 feedback
-  → 验证付款证据与重复使用情况
-  → 计算 B1/B2/B3 分数
+  → B1–B3 加载同一语义维度的 feedback
+  → B2/B3 验证付款证据与重复使用情况
+  → 计算 B1/B2/B3 分数，B0 不计算分数
   → 执行策略
   → 返回可解释 EvaluationResult
 ```
@@ -419,7 +420,7 @@ Agent 可以选择服务和预算，但不能自己把决策改成 `ALLOW`，也
 
 - Service Explorer：只展示 catalog 与两种声誉分数。
 - Trust Evaluation：驱动单次 `trustedFetch`，显示每个阶段、证据和错误。
-- Attack Lab：读取冻结的结果 JSON，展示 B1/B2/B3 图表，不在浏览器运行批量实验。
+- Attack Lab：读取冻结的结果 JSON，展示 B0/B1/B2/B3 图表，不在浏览器运行批量实验。
 
 页面组件不直接调用 `fetch`、RPC 或 MetaMask；这些操作分别经过 API client、`trustedFetch` 和 WalletPort adapter。
 
@@ -457,7 +458,7 @@ adapter 属于后续 Live 模式。
 ```text
 scenario + seed
   → 生成服务、评价和 receipt fixtures
-  → 对相同样本分别运行 B1、B2 和 B3
+  → 对相同样本分别运行 B0、B1、B2 和 B3
   → 计算 malicious payment rate / honest approval rate / replay acceptance
   → 写入带 configHash 的 JSON/CSV
   → Attack Lab 只读展示
@@ -564,7 +565,7 @@ interface ApiError {
 
 - canonical offer golden vectors
 - IdentityEpoch vectors
-- B1/B2/B3 score 与 confidence
+- B0 无分数标记，以及 B1/B2/B3 score 与 confidence
 - policy threshold boundary
 - Grant expiry/mismatch
 - payment event reducer
@@ -617,8 +618,8 @@ REPUGATE_MODE=live
 
 实现以纵向切片推进：
 
-1. `core` 类型、Schema、canonicalization、B1/B2/B3、policy 及 unit tests。
-2. fixture adapters + `evaluateOffer()`，先生成确定性 B1/B2/B3 结果。
+1. `core` 类型、Schema、canonicalization、B0/B1/B2/B3、policy 及 unit tests。
+2. fixture adapters + `evaluateOffer()`，先生成确定性 B0/B1/B2/B3 结果。
 3. API + SQLite，实现 decision、一次性 Grant 和 payment state。
 4. Web + FakeWalletPort，完成无需测试网的端到端 Demo。
 5. Provider + x402 client adapter，接入真实 `402` 流程。
@@ -633,7 +634,7 @@ REPUGATE_MODE=live
 
 - Web 中不存在绕过 `trustedFetch` 的 Agent 付款路径。
 - Core 可以在没有网络、数据库和 React 的情况下运行全部 unit tests。
-- Demo 和 experiments 都调用同一个 B1/B2/B3 `evaluateOffer()` 入口。
+- Demo 和 experiments 都调用同一个 B0/B1/B2/B3 `evaluateOffer()` 入口。
 - 同一 Grant 并发消费只有一个成功。
 - 客户端不能直接把 payment 标记为 `SETTLED`。
 - 修改报价任一安全关键字段都会改变 `offerHash`。

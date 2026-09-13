@@ -68,7 +68,7 @@ const FLOW: Array<{ stage: TrustedFetchStage; title: string; caption: string }> 
   { stage: "INITIAL_REQUEST", title: "Discover", caption: "Request provider" },
   { stage: "PAYMENT_REQUIRED", title: "Challenge", caption: "Parse HTTP 402" },
   { stage: "OFFER_SELECTED", title: "Bind", caption: "Hash exact offer" },
-  { stage: "EVALUATED", title: "Evaluate", caption: "B1 / B2 / B3 policy" },
+  { stage: "EVALUATED", title: "Evaluate", caption: "B0–B3 policy" },
   { stage: "GRANT_CONSUMED", title: "Authorize", caption: "Consume Grant" },
   { stage: "WALLET_AUTHORIZED", title: "Sign", caption: "Narrow wallet port" },
   { stage: "PAYMENT_SUBMITTED", title: "Submit", caption: "x402 payload" },
@@ -94,7 +94,7 @@ interface HistoryItem {
   model: ReputationModel;
   decision: string;
   verifiedScoreBps: number | null;
-  confidenceBps: number;
+  confidenceBps: number | null;
   walletSignCount: number;
 }
 
@@ -110,6 +110,8 @@ function percent(value: number | null | undefined): string {
 
 function modelLabel(model: ReputationModel): string {
   switch (model) {
+    case "B0_NO_GATE":
+      return "B0";
     case "B1_RAW":
       return "B1";
     case "B2_GROUNDED":
@@ -341,7 +343,7 @@ export function App() {
           </p>
           <div className="hero-protocol">
             <span>ERC-8004</span><i />
-            <span>B1 / B2 / B3</span><i />
+            <span>B0 / B1 / B2 / B3</span><i />
             <span>ALLOW Grant</span><i />
             <span>x402</span>
           </div>
@@ -381,6 +383,11 @@ export function App() {
             <div className="control-group">
               <label>Trust model</label>
               <div className="segmented">
+                <button
+                  className={model === "B0_NO_GATE" ? "active" : ""}
+                  onClick={() => setModel("B0_NO_GATE")}
+                  type="button"
+                >B0 · No rep.</button>
                 <button
                   className={model === "B1_RAW" ? "active" : ""}
                   onClick={() => setModel("B1_RAW")}
@@ -440,17 +447,29 @@ export function App() {
           <article className="metric-card">
             <span className="metric-label">Raw reputation</span>
             <strong>{percent(evaluation?.rawScoreBps)}</strong>
-            <small>{evaluation?.distinctReviewerCount ?? 0} distinct reviewers</small>
+            <small>
+              {evaluation?.model === "B0_NO_GATE"
+                ? "Not evaluated by this baseline"
+                : `${evaluation?.distinctReviewerCount ?? 0} distinct reviewers`}
+            </small>
           </article>
           <article className="metric-card accent">
             <span className="metric-label">Verified score</span>
             <strong>{percent(evaluation?.verifiedScoreBps)}</strong>
-            <small>Payment-grounded feedback</small>
+            <small>
+              {evaluation?.model === "B0_NO_GATE"
+                ? "Reputation gate disabled"
+                : "Payment-grounded feedback"}
+            </small>
           </article>
           <article className="metric-card">
             <span className="metric-label">Confidence</span>
             <strong>{percent(evaluation?.confidenceBps)}</strong>
-            <small>{evaluation?.acceptedFeedback.length ?? 0} eligible records</small>
+            <small>
+              {evaluation?.model === "B0_NO_GATE"
+                ? "Not applicable"
+                : `${evaluation?.acceptedFeedback.length ?? 0} eligible records`}
+            </small>
           </article>
           <article className="metric-card signature">
             <span className="metric-label">Wallet signatures</span>
@@ -555,7 +574,7 @@ export function App() {
               <span className="section-index">06 / COMPARISON LOG</span>
               <h2>Recent deterministic runs</h2>
             </div>
-            <p>Compare B1, B2, and B3 on the same attack to isolate each defense.</p>
+            <p>Compare B0 through B3 on the same attack to isolate each defense.</p>
           </div>
           <div className="runs-table-wrap">
             <table className="runs-table">

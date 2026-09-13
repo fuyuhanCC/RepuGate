@@ -82,6 +82,7 @@ const identitySnapshotDtoSchema = z
 const offerEvaluationDtoSchema = z
   .object({
     model: z.enum([
+      "B0_NO_GATE",
       "B1_RAW",
       "B2_GROUNDED",
       "B3_REPUGATE",
@@ -89,7 +90,7 @@ const offerEvaluationDtoSchema = z
     ]),
     rawScoreBps: z.number().int().nullable(),
     verifiedScoreBps: z.number().int().nullable(),
-    confidenceBps: z.number().int(),
+    confidenceBps: z.number().int().nullable(),
     distinctReviewerCount: z.number().int().nonnegative(),
     acceptedFeedback: z.array(feedbackEvaluationSchema),
     rejectedFeedback: z.array(feedbackEvaluationSchema),

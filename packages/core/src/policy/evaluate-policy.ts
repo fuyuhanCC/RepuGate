@@ -86,6 +86,14 @@ export function evaluatePolicy(input: EvaluatePolicyInput): PolicyDecision {
     };
   }
 
+  if (input.assessment.model === "B0_NO_GATE") {
+    return {
+      decision: "ALLOW",
+      reasons: ["REPUTATION_GATE_DISABLED"],
+      policyHash,
+    };
+  }
+
   const { scoreBps, confidenceBps } = input.assessment;
   const requiresConfidence =
     input.assessment.model === "B3_REPUGATE" ||
@@ -101,7 +109,9 @@ export function evaluatePolicy(input: EvaluatePolicyInput): PolicyDecision {
 
   if (
     scoreBps >= policy.allowScoreBps &&
-    (!requiresConfidence || confidenceBps >= policy.allowConfidenceBps)
+    (!requiresConfidence ||
+      (confidenceBps !== null &&
+        confidenceBps >= policy.allowConfidenceBps))
   ) {
     return {
       decision: "ALLOW",

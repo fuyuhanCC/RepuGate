@@ -12,7 +12,12 @@ describe("presentation experiment", () => {
       report.summary.map((item) => [item.model, item]),
     );
 
-    expect(report.results).toHaveLength(20);
+    expect(report.results).toHaveLength(25);
+    expect(summary.B0_NO_GATE).toMatchObject({
+      honestScenarioAllowRateBps: 10_000,
+      attackScenarioAllowRateBps: 7_500,
+      attackScenariosAllowed: 3,
+    });
     expect(summary.B1_RAW).toMatchObject({
       honestScenarioAllowRateBps: 10_000,
       attackScenarioAllowRateBps: 7_500,
@@ -37,6 +42,7 @@ describe("presentation experiment", () => {
 
     expect(lines).toHaveLength(report.results.length + 1);
     expect(lines[0]).toContain('"scenarioId"');
+    expect(lines.some((line) => line.includes('"B0_NO_GATE"'))).toBe(true);
     expect(lines.some((line) => line.includes('"B2_GROUNDED"'))).toBe(true);
   });
 

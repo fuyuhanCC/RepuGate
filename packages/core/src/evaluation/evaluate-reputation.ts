@@ -10,21 +10,29 @@ import type {
 import type { FeedbackRecord } from "../domain/reputation";
 import type { IdentitySnapshot } from "../domain/types";
 import { evaluatePolicy } from "../policy/evaluate-policy";
+import { assessB0NoGate } from "../reputation/b0";
 import { assessB1RawReputation } from "../reputation/b1";
 import { assessB2GroundedReputation } from "../reputation/b2";
 import { assessB3Reputation } from "../reputation/b3";
 import { assessB3DirichletReputation } from "../reputation/b3-dirichlet";
 import type { QualityFeedbackScope } from "../reputation/quality-feedback";
 
-interface CommonEvaluationInput {
+interface PolicyEvaluationInput {
+  policy?: PolicyConfig;
+  identityMatched?: boolean;
+  offerRiskFlags?: readonly string[];
+}
+
+interface CommonEvaluationInput extends PolicyEvaluationInput {
   feedback: readonly FeedbackRecord[];
   identity: IdentitySnapshot;
   tag1?: string;
   tag2?: string;
-  policy?: PolicyConfig;
-  identityMatched?: boolean;
-  offerRiskFlags?: readonly string[];
   receiptUsageReader?: ReceiptUsageReader;
+}
+
+export interface B0ReputationEvaluationInput extends PolicyEvaluationInput {
+  model: "B0_NO_GATE";
 }
 
 export interface B1ReputationEvaluationInput extends CommonEvaluationInput {
@@ -51,6 +59,7 @@ export interface B3DirichletReputationEvaluationInput
 }
 
 export type ReputationEvaluationInput =
+  | B0ReputationEvaluationInput
   | B1ReputationEvaluationInput
   | B2ReputationEvaluationInput
   | B3ReputationEvaluationInput
@@ -68,6 +77,30 @@ function buildScope(input: CommonEvaluationInput): QualityFeedbackScope {
 export async function evaluateReputation(
   input: ReputationEvaluationInput,
 ): Promise<ReputationEvaluationResult> {
+  if (input.model === "B0_NO_GATE") {
+    const assessment = assessB0NoGate();
+    const policyDecision = evaluatePolicy({
+      assessment,
+      policy: input.policy,
+      identityMatched: input.identityMatched,
+      offerRiskFlags: input.offerRiskFlags,
+    });
+
+    return {
+      model: assessment.model,
+      rawScoreBps: null,
+      verifiedScoreBps: null,
+      confidenceBps: null,
+      distinctReviewerCount: 0,
+      acceptedFeedback: [],
+      rejectedFeedback: [],
+      riskFlags: [],
+      decision: policyDecision.decision,
+      decisionReasons: policyDecision.reasons,
+      policyHash: policyDecision.policyHash,
+    };
+  }
+
   const scope = buildScope(input);
   const b1 = assessB1RawReputation({
     feedback: input.feedback,
