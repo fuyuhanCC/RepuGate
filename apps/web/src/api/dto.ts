@@ -198,6 +198,34 @@ const liveRegistryDisabledSchema = z
   })
   .strict();
 
+const liveTagCountSchema = z
+  .object({
+    value: z.string(),
+    count: z.number().int().nonnegative(),
+  })
+  .strict();
+
+const liveRejectionCountSchema = z
+  .object({
+    reason: feedbackRejectionReasonSchema,
+    count: z.number().int().nonnegative(),
+  })
+  .strict();
+
+const liveVerificationIssueSchema = z
+  .object({
+    code: z.enum([
+      "INDEXER_UNAVAILABLE",
+      "LOCATOR_DUPLICATE",
+      "LOCATOR_EXTRA",
+      "LOCATOR_MISSING",
+      "RECEIPT_EVENT_MISMATCH",
+      "RECEIPT_UNAVAILABLE",
+    ]),
+    count: z.number().int().nonnegative(),
+  })
+  .strict();
+
 const liveRegistryEnabledSchema = z
   .object({
     enabled: z.literal(true),
@@ -207,14 +235,30 @@ const liveRegistryEnabledSchema = z
     chainId: z.number().int().positive(),
     identityRegistry: evmAddressSchema,
     reputationRegistry: evmAddressSchema,
-    feedbackFromBlock: unsignedIntegerStringSchema,
     identity: identitySnapshotDtoSchema,
+    feedbackSource: z.literal("contract-state"),
+    locatorSource: z.string().min(1),
+    verificationStatus: z.enum(["VERIFIED", "INCOMPLETE"]),
+    onchainFeedbackCount: z.number().int().nonnegative(),
+    locatorFeedbackCount: z.number().int().nonnegative(),
+    verifiedReceiptCount: z.number().int().nonnegative(),
+    verificationIssueCounts: z.array(liveVerificationIssueSchema),
     feedbackCount: z.number().int().nonnegative(),
+    inspectionScope: z
+      .object({
+        tag1: z.literal("quality"),
+        tag2: z.null(),
+        endpoint: httpResourceUrlSchema,
+      })
+      .strict(),
+    tag1Distribution: z.array(liveTagCountSchema),
+    tag2Distribution: z.array(liveTagCountSchema),
     rawScoreBps: z.number().int().nullable(),
-    confidenceBps: z.number().int().min(0).max(10_000),
+    confidenceBps: z.number().int().min(0).max(10_000).nullable(),
     distinctReviewerCount: z.number().int().nonnegative(),
     eligibleFeedbackCount: z.number().int().nonnegative(),
     rejectedFeedbackCount: z.number().int().nonnegative(),
+    rejectionReasonCounts: z.array(liveRejectionCountSchema),
     riskFlags: z.array(reputationRiskFlagSchema),
   })
   .strict();

@@ -13,6 +13,8 @@ import type {
   Address,
   Bytes32,
   DeterministicScenarioId,
+  FeedbackEvaluation,
+  FeedbackRejectionReason,
 } from "@repugate/core";
 import Fastify from "fastify";
 import type { FastifyInstance } from "fastify";
@@ -70,6 +72,42 @@ function scenarioId(value: string): DeterministicScenarioId {
   }
 
   return value as DeterministicScenarioId;
+}
+
+function summarizeValues(
+  values: readonly string[],
+): { value: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((left, right) =>
+      right.count === left.count
+        ? left.value.localeCompare(right.value)
+        : right.count - left.count,
+    );
+}
+
+function summarizeRejections(
+  rejected: readonly FeedbackEvaluation[],
+): { reason: FeedbackRejectionReason; count: number }[] {
+  const counts = new Map<FeedbackRejectionReason, number>();
+  for (const item of rejected) {
+    if (item.reason !== undefined) {
+      counts.set(item.reason, (counts.get(item.reason) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((left, right) =>
+      right.count === left.count
+        ? left.reason.localeCompare(right.reason)
+        : right.count - left.count,
+    );
 }
 
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
@@ -149,9 +187,10 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
 
     const reader = options.liveErc8004.createReader();
     const identity = await reader.resolve(options.liveErc8004.reference);
-    const feedback = await reader.listQualityFeedback(
+    const inspection = await reader.inspectFeedback(
       options.liveErc8004.reference,
     );
+    const feedback = inspection.feedback;
     const assessment = assessB1RawReputation({
       feedback,
       scope: {
@@ -169,15 +208,38 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
       chainId: options.liveErc8004.config.chainId,
       identityRegistry: options.liveErc8004.config.identityRegistry,
       reputationRegistry: options.liveErc8004.config.reputationRegistry,
-      feedbackFromBlock:
-        options.liveErc8004.config.feedbackFromBlock.toString(),
       identity,
-      feedbackCount: feedback.length,
-      rawScoreBps: assessment.scoreBps,
-      confidenceBps: assessment.confidenceBps,
+      feedbackSource: "contract-state",
+      locatorSource: new URL(
+        options.liveErc8004.config.feedbackIndexerUrl,
+      ).hostname,
+      verificationStatus: inspection.status,
+      onchainFeedbackCount: inspection.onchainFeedbackCount,
+      locatorFeedbackCount: inspection.locatorFeedbackCount,
+      verifiedReceiptCount: inspection.verifiedReceiptCount,
+      verificationIssueCounts: summarizeValues(
+        inspection.issues.map((item) => item.code),
+      ).map(({ value, count }) => ({ code: value, count })),
+      feedbackCount: inspection.onchainFeedbackCount,
+      inspectionScope: {
+        tag1: "quality",
+        tag2: null,
+        endpoint: identity.registeredEndpoint,
+      },
+      tag1Distribution: summarizeValues(feedback.map((item) => item.tag1)),
+      tag2Distribution: summarizeValues(feedback.map((item) => item.tag2)),
+      rawScoreBps:
+        inspection.status === "VERIFIED" ? assessment.scoreBps : null,
+      confidenceBps:
+        inspection.status === "VERIFIED"
+          ? assessment.confidenceBps
+          : null,
       distinctReviewerCount: assessment.distinctReviewerCount,
       eligibleFeedbackCount: assessment.acceptedFeedback.length,
       rejectedFeedbackCount: assessment.rejectedFeedback.length,
+      rejectionReasonCounts: summarizeRejections(
+        assessment.rejectedFeedback,
+      ),
       riskFlags: assessment.riskFlags,
     });
   });

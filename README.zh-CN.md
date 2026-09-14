@@ -73,14 +73,19 @@ cp .env.example .env
 页面底部选择 **Inspect live registry**。API endpoint 为 `GET /api/live/erc8004`。
 
 Live Reader 在同一个区块高度读取身份和反馈快照，验证 Reputation Registry 是否属于
-配置的 Identity Registry，读取 `ownerOf`、`agentWallet` 和 `tokenURI`，检查注册文件
-的自引用与 endpoint，并根据 Registry 事件重建评价和撤销记录。注册文件下载是只读的，
+配置的 Identity Registry，读取 `ownerOf`、`agentWallet` 和 `tokenURI`，并检查注册文件
+的自引用与 endpoint。它通过 ERC-8004 `readAllFeedback()` 取得完整的评价键、数值、标签
+和撤销状态。8004scan 只提供不可信的交易定位信息；RepuGate 再通过自己的 RPC 获取每笔
+receipt、解码 Registry 事件，并要求事件字段与合约状态一致后才允许输出分数。这样既避免
+无边界的历史 `eth_getLogs` 扫描，也不会信任索引器给出的评价值。注册文件下载是只读的，
 仅允许受约束的 HTTPS/IPFS，不跟随重定向，并设置超时和 256 KiB 大小上限。
 
 第一阶段 Live 功能只计算 **B1 raw reputation**。它不会获取任意 `feedbackURI`，也不会
-把其中的付款声明当作已经验证的证据。在接入 EVM receipt verifier 前，B2/B3 继续使用
-确定性证据路径。Live 查询失败不会静默回退到 fixture；UI 会显示错误，同时保留可用的
-Presentation Demo。
+把其中的付款声明当作已经验证的证据。UI 会统计实际出现的 `tag1`/`tag2`，并按原因汇总
+被严格范围过滤排除的评价；它不会把自定义标签重新解释为 `quality`。定位信息或 Registry
+事件验证不完整时，B1 分数会被抑制。这些 receipt 只证明评价事件真实，并不证明发生过
+x402 付款。在接入付款 receipt verifier 前，B2/B3 继续使用确定性证据路径。Live 查询
+失败不会静默回退到 fixture；UI 会显示错误，同时保留可用的 Presentation Demo。
 
 ## 重新生成冻结实验结果
 

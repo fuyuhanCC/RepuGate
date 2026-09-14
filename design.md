@@ -260,13 +260,19 @@ The web application must have two modes:
 - **Target Live payment mode** optionally connects MetaMask and performs a Base Sepolia x402 flow.
 
 The implemented first Live slice is intentionally read-only. It resolves one
-configured ERC-8004 identity and reconstructs raw feedback and revocations from
-registry events at a shared block snapshot. The Web UI exposes this as an
-optional inspector, while deterministic fixture mode remains the default and
-never depends on RPC availability. Live B2/B3 payment grounding is fail-closed
-until untrusted feedback claims can be fetched safely and verified against EVM
-receipts; it is never replaced with simulated evidence or a silent fixture
-fallback.
+configured ERC-8004 identity and reads the complete stored feedback and
+revocation state with `readAllFeedback()` at a shared block snapshot. An
+8004scan adapter supplies untrusted transaction hashes only as event locators;
+every receipt is fetched through the configured RPC, decoded against the
+configured Reputation Registry, and cross-checked with contract state to
+recover event-only endpoint fields. Missing, duplicate, extra, or mismatched
+locators make history incomplete and suppress the B1 score. The Web UI exposes
+this as an optional inspector, while deterministic fixture mode remains the
+default and never depends on RPC or indexer availability. Registry-event
+receipt verification does not establish payment grounding. Live B2/B3 remain
+fail-closed until untrusted payment claims can be fetched safely and verified
+against x402 EVM receipts; they are never replaced with simulated evidence or a
+silent fixture fallback.
 
 Experiments run through a separate command-line program and write immutable JSON/CSV artifacts to `data/results/`. The Presentation Web App bundles a generated copy of the frozen JSON and renders it read-only; experiments never share mutable Grant, payment, or replay-prevention state with the API.
 
@@ -1209,12 +1215,13 @@ The fixed dependency direction is `web -> client -> {core, x402}`, `api -> core`
 ### 15.1 Future Reputation Extensions
 
 As defined in Section 8, the implemented scorer currently evaluates only the
-`quality` dimension. The following work extends evidence processing within
-that controlled scope.
+`quality` dimension. The following work either extends evidence processing
+within that controlled scope or defines how later versions could support
+additional dimensions without weakening the current experiment semantics.
 
-Two compatible extensions are deferred for future work. Both would change how
-evidence is weighted **within the same quality dimension**, rather than adding
-new dimensions:
+The first two extensions below change how evidence is weighted **within the
+same quality dimension**. The third defines a separate path for supporting
+additional dimensions:
 
 1. **Reviewer trust weighting.** Assign each reviewer a transparent weight
    `w_r` derived from evidence independent of the target Agent's current score,
@@ -1234,7 +1241,23 @@ new dimensions:
    half-life must be selected on development data and tested through a
    sensitivity sweep rather than tuned on final attack results.
 
-If both extensions are used, a capped combined weight could be
+3. **Explicit tag and dimension profiles.** The current Live Inspector
+   inventories the `tag1`/`tag2` values observed for an Agent and explains
+   strict-scope exclusions without changing their meaning. A future version
+   may additionally apply a configured, auditable profile for a supported
+   dimension such as quality, uptime, latency, or success rate. Each profile
+   must define the accepted
+   tags, value range, unit, direction, normalization rule, endpoint scope, and
+   displayed score meaning. It must preserve the original event fields and
+   record which profile produced the normalized value. The system must not
+   automatically reinterpret an arbitrary tag such as `mediationSuccess` as
+   `quality`, and scores from semantically different dimensions must not be
+   averaged into one reputation number without a separately justified model.
+   Unsupported tags should remain visible as raw observations with an explicit
+   exclusion reason. The current B0--B3 experiment remains fixed to the strict
+   quality profile so baseline comparisons stay controlled and reproducible.
+
+If the first two extensions are used together, a capped combined weight could be
 `w_r = w_trust * w_time`. The current confidence `n/(n+2)` could not be reused
 unchanged: weighted evidence would require a declared effective evidence mass,
 for example `sum(w_r)`, or an effective sample-size estimator, together with

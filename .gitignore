@@ -9,3 +9,5 @@ coverage/
 var/
 *.log
 .DS_Store
+
+/Pre

@@ -8,6 +8,7 @@ export const identityRegistryAbi = parseAbi([
 
 export const reputationRegistryAbi = parseAbi([
   "function getIdentityRegistry() view returns (address)",
+  "function readAllFeedback(uint256 agentId, address[] clientAddresses, string tag1, string tag2, bool includeRevoked) view returns (address[] clients, uint64[] feedbackIndexes, int128[] values, uint8[] valueDecimals, string[] tag1s, string[] tag2s, bool[] revokedStatuses)",
 ]);
 
 export const newFeedbackEvent = parseAbiItem(

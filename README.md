@@ -85,16 +85,25 @@ bottom of the page. The API endpoint is `GET /api/live/erc8004`.
 
 The live reader takes one block-number snapshot, verifies that the Reputation
 Registry belongs to the configured Identity Registry, reads `ownerOf`,
-`agentWallet`, and `tokenURI`, validates the registration file's self-reference
-and endpoint, and reconstructs feedback plus revocations from registry events.
-Registration downloads are read-only, HTTPS/IPFS constrained, redirect-free,
-time-limited, and capped at 256 KiB.
+`agentWallet`, and `tokenURI`, and validates the registration file's
+self-reference and endpoint. It obtains the complete feedback key/value/tag and
+revocation state through ERC-8004 `readAllFeedback()`. 8004scan supplies only
+untrusted transaction locators; RepuGate fetches each receipt through its RPC,
+decodes the Registry event, and requires the receipt fields to agree with
+contract state before exposing a score. This avoids an unbounded historical
+`eth_getLogs` scan without trusting the indexer's feedback values. Registration
+downloads are read-only, HTTPS/IPFS constrained, redirect-free, time-limited,
+and capped at 256 KiB.
 
 This first Live slice computes **B1 raw reputation** only. It deliberately does
 not fetch arbitrary `feedbackURI` documents or treat their payment claims as
-verified evidence. B2/B3 remain on the deterministic evidence path until an EVM
-receipt verifier is connected. A live lookup failure never falls back silently
-to fixture data; the UI labels the failure while the Presentation demo remains
+verified evidence. The UI inventories observed `tag1`/`tag2` values and groups
+strict-scope exclusions by reason; it does not reinterpret custom tags as
+`quality`. Incomplete locator or Registry-event verification suppresses the B1
+score. These receipts prove feedback-event authenticity, not x402 payment.
+B2/B3 remain on the deterministic evidence path until a payment receipt
+verifier is connected. A live lookup failure never falls back silently to
+fixture data; the UI labels the failure while the Presentation demo remains
 available.
 
 ## Regenerate the frozen experiment results

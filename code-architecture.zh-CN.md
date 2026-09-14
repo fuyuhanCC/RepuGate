@@ -116,6 +116,14 @@ apps/provider Live x402 ─→ Facilitator / Base Sepolia
 packages/client ────→ MetaMask / target Provider
 ```
 
+当前 API 同时提供 fixture 与 Live Adapter 路径，Presentation 默认使用 fixture。
+`apps/api/src/adapters/erc8004/live-reader.ts` 使用 viem，从 ERC-8004 部署读取同一 block
+下的身份和 `readAllFeedback()` 快照。`8004scan-locator.ts` 取得交易哈希，但仅被视为不可信
+定位器：Live Reader 会自行通过 RPC 获取每笔 receipt、解码 Registry 事件，并与合约状态
+交叉核对后才恢复仅存在于事件中的 endpoint。验证不完整时会抑制 B1 分数。Live Inspector
+当前只提供 B1 raw reputation；付款证明文档读取和 x402 receipt 验证仍是独立的未来 Adapter，
+不会在 Live 模式中用模拟结果代替。
+
 必须遵守以下规则：
 
 - `core` 不导入 React、Express/Fastify、SQLite、Node 文件系统或具体 RPC client。

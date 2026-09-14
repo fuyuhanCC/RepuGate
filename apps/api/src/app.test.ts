@@ -78,7 +78,13 @@ function createApp(): FastifyInstance {
   return app;
 }
 
-function createLiveRuntime(options: { fail?: boolean } = {}): LiveErc8004Runtime {
+function createLiveRuntime(
+  options: {
+    fail?: boolean;
+    includeOutOfScope?: boolean;
+    incomplete?: boolean;
+  } = {},
+): LiveErc8004Runtime {
   const identityRegistry =
     "0x8004A818BFB912233c491871b3d84c89A494BD9e" as Address;
   const reputationRegistry =
@@ -114,6 +120,18 @@ function createLiveRuntime(options: { fail?: boolean } = {}): LiveErc8004Runtime
     isRevoked: false,
     observedAtBlock: "490",
   });
+  const outOfScopeFeedback = normalizeFeedbackRecord({
+    agent: agentInput,
+    clientAddress: "0x2222222222222222222222222222222222222222",
+    feedbackIndex: "2",
+    value: "1",
+    valueDecimals: 0,
+    tag1: "mediationSuccess",
+    tag2: "mediation",
+    endpoint,
+    isRevoked: false,
+    observedAtBlock: "491",
+  });
 
   return {
     config: {
@@ -121,7 +139,7 @@ function createLiveRuntime(options: { fail?: boolean } = {}): LiveErc8004Runtime
       identityRegistry,
       reputationRegistry,
       serviceEndpoint: endpoint,
-      feedbackFromBlock: 100n,
+      feedbackIndexerUrl: "https://api.8004scan.io/api/v1",
     },
     reference,
     createReader() {
@@ -136,7 +154,29 @@ function createLiveRuntime(options: { fail?: boolean } = {}): LiveErc8004Runtime
           return identity;
         },
         async listQualityFeedback() {
-          return [feedback];
+          return options.includeOutOfScope === true
+            ? [feedback, outOfScopeFeedback]
+            : [feedback];
+        },
+        async inspectFeedback() {
+          const records = options.includeOutOfScope === true
+            ? [feedback, outOfScopeFeedback]
+            : [feedback];
+          return {
+            feedback: records,
+            status: options.incomplete === true
+              ? ("INCOMPLETE" as const)
+              : ("VERIFIED" as const),
+            onchainFeedbackCount: records.length,
+            locatorFeedbackCount:
+              options.incomplete === true ? 0 : records.length,
+            verifiedReceiptCount:
+              options.incomplete === true ? 0 : records.length,
+            issues:
+              options.incomplete === true
+                ? ([{ code: "INDEXER_UNAVAILABLE" as const }])
+                : [],
+          };
         },
       };
     },
@@ -211,11 +251,74 @@ describe("live ERC-8004 endpoint", () => {
       source: "live-rpc",
       fixtureMode: "available",
       model: "B1_RAW",
+      feedbackSource: "contract-state",
+      locatorSource: "api.8004scan.io",
+      verificationStatus: "VERIFIED",
+      onchainFeedbackCount: 1,
+      locatorFeedbackCount: 1,
+      verifiedReceiptCount: 1,
+      verificationIssueCounts: [],
       rawScoreBps: 9_000,
       feedbackCount: 1,
       eligibleFeedbackCount: 1,
+      inspectionScope: {
+        tag1: "quality",
+        tag2: null,
+        endpoint: "https://agent.example/services/inference",
+      },
+      tag1Distribution: [{ value: "quality", count: 1 }],
+      tag2Distribution: [{ value: "inference", count: 1 }],
+      rejectionReasonCounts: [],
     });
     expect(await getService(app, "honest-service")).toBeDefined();
+  });
+
+  it("reports observed tags and strict-scope rejection reasons", async () => {
+    app = buildApp({
+      databasePath: ":memory:",
+      liveErc8004: createLiveRuntime({ includeOutOfScope: true }),
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/live/erc8004",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      feedbackCount: 2,
+      eligibleFeedbackCount: 1,
+      rejectedFeedbackCount: 1,
+      tag1Distribution: [
+        { value: "mediationSuccess", count: 1 },
+        { value: "quality", count: 1 },
+      ],
+      tag2Distribution: [
+        { value: "inference", count: 1 },
+        { value: "mediation", count: 1 },
+      ],
+      rejectionReasonCounts: [{ reason: "TAG_MISMATCH", count: 1 }],
+    });
+  });
+
+  it("suppresses the B1 score when feedback history verification is incomplete", async () => {
+    app = buildApp({
+      databasePath: ":memory:",
+      liveErc8004: createLiveRuntime({ incomplete: true }),
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/live/erc8004",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      verificationStatus: "INCOMPLETE",
+      rawScoreBps: null,
+      confidenceBps: null,
+      verificationIssueCounts: [
+        { code: "INDEXER_UNAVAILABLE", count: 1 },
+      ],
+    });
   });
 
   it("fails a live lookup explicitly without falling back to fixture data", async () => {

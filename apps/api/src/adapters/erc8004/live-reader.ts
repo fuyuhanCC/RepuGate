@@ -15,6 +15,7 @@ import {
 } from "@repugate/core";
 import type { PublicClient } from "viem";
 import {
+  decodeEventLog,
   getAddress,
   keccak256,
   toHex,
@@ -23,13 +24,18 @@ import {
 import { z } from "zod";
 
 import {
-  feedbackRevokedEvent,
   identityRegistryAbi,
   newFeedbackEvent,
   reputationRegistryAbi,
 } from "./abi";
+import {
+  FeedbackLocatorError,
+  locateIndexedFeedback,
+  type IndexedFeedbackLocator,
+} from "./8004scan-locator";
 
 const MAX_REGISTRATION_BYTES = 256 * 1024;
+const MAX_LIVE_FEEDBACK_RECORDS = 500;
 
 const registrationServiceSchema = z
   .object({
@@ -59,6 +65,9 @@ export type LiveErc8004ErrorCode =
   | "CHAIN_MISMATCH"
   | "IDENTITY_REFERENCE_MISMATCH"
   | "IDENTITY_REGISTRY_MISMATCH"
+  | "FEEDBACK_HISTORY_INCOMPLETE"
+  | "FEEDBACK_STATE_INVALID"
+  | "FEEDBACK_STATE_READ_FAILED"
   | "REGISTRATION_FETCH_FAILED"
   | "REGISTRATION_FILE_INVALID"
   | "REGISTRATION_REFERENCE_MISMATCH"
@@ -82,13 +91,39 @@ export interface LiveErc8004ReaderConfig {
   identityRegistry: Address;
   reputationRegistry: Address;
   serviceEndpoint: string;
-  feedbackFromBlock: bigint;
+  feedbackIndexerUrl: string;
   ipfsGateway?: string;
 }
 
 export interface LiveErc8004ReaderDependencies {
   client: PublicClient;
   fetch?: typeof globalThis.fetch;
+}
+
+export type LiveFeedbackIssueCode =
+  | "INDEXER_UNAVAILABLE"
+  | "LOCATOR_DUPLICATE"
+  | "LOCATOR_EXTRA"
+  | "LOCATOR_MISSING"
+  | "RECEIPT_EVENT_MISMATCH"
+  | "RECEIPT_UNAVAILABLE";
+
+export interface LiveFeedbackIssue {
+  code: LiveFeedbackIssueCode;
+  feedbackKey?: string;
+}
+
+export interface LiveFeedbackInspection {
+  feedback: readonly FeedbackRecord[];
+  status: "VERIFIED" | "INCOMPLETE";
+  onchainFeedbackCount: number;
+  locatorFeedbackCount: number;
+  verifiedReceiptCount: number;
+  issues: readonly LiveFeedbackIssue[];
+}
+
+export interface LiveErc8004Inspector extends IdentityReader, FeedbackReader {
+  inspectFeedback(reference: AgentReference): Promise<LiveFeedbackInspection>;
 }
 
 function sameAddress(left: string, right: string): boolean {
@@ -384,8 +419,129 @@ function feedbackRecordKey(clientAddress: string, feedbackIndex: bigint): string
   return `${clientAddress.toLowerCase()}:${feedbackIndex}`;
 }
 
-export class LiveErc8004Reader implements IdentityReader, FeedbackReader {
+type StoredFeedbackTuple = readonly [
+  readonly Address[],
+  readonly bigint[],
+  readonly bigint[],
+  readonly number[],
+  readonly string[],
+  readonly string[],
+  readonly boolean[],
+];
+
+function parseStoredFeedback(
+  value: StoredFeedbackTuple,
+  reference: AgentReference,
+  observedAtBlock: bigint,
+): FeedbackRecord[] {
+  const [
+    clients,
+    feedbackIndexes,
+    values,
+    valueDecimals,
+    tag1s,
+    tag2s,
+    revokedStatuses,
+  ] = value;
+  const lengths = [
+    clients.length,
+    feedbackIndexes.length,
+    values.length,
+    valueDecimals.length,
+    tag1s.length,
+    tag2s.length,
+    revokedStatuses.length,
+  ];
+  if (lengths.some((length) => length !== clients.length)) {
+    throw new LiveErc8004Error(
+      "FEEDBACK_STATE_INVALID",
+      "The Reputation Registry returned inconsistent feedback arrays",
+    );
+  }
+  if (clients.length > MAX_LIVE_FEEDBACK_RECORDS) {
+    throw new LiveErc8004Error(
+      "FEEDBACK_STATE_INVALID",
+      `The Agent has more than ${MAX_LIVE_FEEDBACK_RECORDS} feedback records, above the Live Inspector limit`,
+    );
+  }
+
+  return clients.map((clientAddress, index) =>
+    normalizeFeedbackRecord({
+      agent: {
+        chainId: reference.chainId,
+        registry: reference.registry,
+        agentId: reference.agentId.toString(),
+      },
+      clientAddress,
+      feedbackIndex: feedbackIndexes[index]!.toString(),
+      value: values[index]!.toString(),
+      valueDecimals: valueDecimals[index]!,
+      tag1: tag1s[index]!,
+      tag2: tag2s[index]!,
+      isRevoked: revokedStatuses[index]!,
+      observedAtBlock: observedAtBlock.toString(),
+    }),
+  );
+}
+
+function eventMatchesStoredFeedback(
+  args: {
+    agentId: bigint;
+    clientAddress: Address;
+    feedbackIndex: bigint;
+    value: bigint;
+    valueDecimals: number;
+    tag1: string;
+    tag2: string;
+  },
+  stored: FeedbackRecord,
+): boolean {
+  return (
+    args.agentId === stored.agent.agentId &&
+    sameAddress(args.clientAddress, stored.clientAddress) &&
+    args.feedbackIndex === stored.feedbackIndex &&
+    args.value === stored.value &&
+    args.valueDecimals === stored.valueDecimals &&
+    args.tag1 === stored.tag1 &&
+    args.tag2 === stored.tag2
+  );
+}
+
+async function mapWithConcurrency<T, R>(
+  values: readonly T[],
+  limit: number,
+  mapper: (value: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < values.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(values[index]!);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, values.length) }, () => worker()),
+  );
+  return results;
+}
+
+interface FeedbackWithLocator {
+  stored: FeedbackRecord;
+  locator: IndexedFeedbackLocator;
+}
+
+interface ReceiptVerificationResult {
+  feedback: FeedbackRecord;
+  issue?: LiveFeedbackIssue;
+}
+
+export class LiveErc8004Reader implements LiveErc8004Inspector {
   private snapshotBlockPromise: Promise<bigint> | undefined;
+  private feedbackInspectionPromise: Promise<LiveFeedbackInspection> | undefined;
 
   constructor(
     private readonly config: LiveErc8004ReaderConfig,
@@ -487,63 +643,223 @@ export class LiveErc8004Reader implements IdentityReader, FeedbackReader {
     });
   }
 
+  private async verifyReceipt(
+    item: FeedbackWithLocator,
+    snapshotBlock: bigint,
+  ): Promise<ReceiptVerificationResult> {
+    const feedbackKey = feedbackRecordKey(
+      item.stored.clientAddress,
+      item.stored.feedbackIndex,
+    );
+    try {
+      const receipt = await this.dependencies.client.getTransactionReceipt({
+        hash: item.locator.transactionHash,
+      });
+      if (
+        receipt.status !== "success" ||
+        receipt.blockNumber > snapshotBlock ||
+        receipt.blockNumber !== item.locator.blockNumber
+      ) {
+        return {
+          feedback: item.stored,
+          issue: { code: "RECEIPT_EVENT_MISMATCH", feedbackKey },
+        };
+      }
+
+      const matchingEvents = receipt.logs.flatMap((log) => {
+        if (!sameAddress(log.address, this.config.reputationRegistry)) {
+          return [];
+        }
+        try {
+          const decoded = decodeEventLog({
+            abi: [newFeedbackEvent],
+            data: log.data,
+            topics: log.topics,
+            strict: true,
+          });
+          if (
+            decoded.eventName !== "NewFeedback" ||
+            !eventMatchesStoredFeedback(decoded.args, item.stored)
+          ) {
+            return [];
+          }
+          return [decoded.args];
+        } catch {
+          return [];
+        }
+      });
+      if (matchingEvents.length !== 1) {
+        return {
+          feedback: item.stored,
+          issue: { code: "RECEIPT_EVENT_MISMATCH", feedbackKey },
+        };
+      }
+
+      const event = matchingEvents[0]!;
+      return {
+        feedback: normalizeFeedbackRecord({
+          agent: {
+            chainId: item.stored.agent.chainId,
+            registry: item.stored.agent.registry,
+            agentId: item.stored.agent.agentId.toString(),
+          },
+          clientAddress: event.clientAddress,
+          feedbackIndex: event.feedbackIndex.toString(),
+          value: event.value.toString(),
+          valueDecimals: event.valueDecimals,
+          tag1: event.tag1,
+          tag2: event.tag2,
+          ...(event.endpoint === "" ? {} : { endpoint: event.endpoint }),
+          ...(event.feedbackURI === ""
+            ? {}
+            : { feedbackUri: event.feedbackURI }),
+          feedbackHash: event.feedbackHash,
+          isRevoked: item.stored.isRevoked,
+          observedAtBlock: receipt.blockNumber.toString(),
+        }),
+      };
+    } catch {
+      return {
+        feedback: item.stored,
+        issue: { code: "RECEIPT_UNAVAILABLE", feedbackKey },
+      };
+    }
+  }
+
+  async inspectFeedback(
+    reference: AgentReference,
+  ): Promise<LiveFeedbackInspection> {
+    this.assertReference(reference);
+    this.feedbackInspectionPromise ??= (async () => {
+      const blockNumber = await this.snapshotBlock();
+      let storedTuple: StoredFeedbackTuple;
+      try {
+        storedTuple = await this.dependencies.client.readContract({
+          address: this.config.reputationRegistry,
+          abi: reputationRegistryAbi,
+          functionName: "readAllFeedback",
+          args: [reference.agentId, [], "", "", true],
+          blockNumber,
+        });
+      } catch (error) {
+        throw new LiveErc8004Error(
+          "FEEDBACK_STATE_READ_FAILED",
+          "The Reputation Registry feedback state could not be read",
+          { cause: error },
+        );
+      }
+
+      const storedFeedback = parseStoredFeedback(
+        storedTuple,
+        reference,
+        blockNumber,
+      );
+      let locators: readonly IndexedFeedbackLocator[];
+      try {
+        locators = await locateIndexedFeedback(
+          this.config.feedbackIndexerUrl,
+          reference,
+          this.dependencies.fetch ?? globalThis.fetch,
+        );
+      } catch (error) {
+        if (!(error instanceof FeedbackLocatorError)) throw error;
+        return {
+          feedback: storedFeedback,
+          status: "INCOMPLETE",
+          onchainFeedbackCount: storedFeedback.length,
+          locatorFeedbackCount: 0,
+          verifiedReceiptCount: 0,
+          issues: [{ code: "INDEXER_UNAVAILABLE" }],
+        };
+      }
+
+      const issues: LiveFeedbackIssue[] = [];
+      const storedByKey = new Map(
+        storedFeedback.map((item) => [
+          feedbackRecordKey(item.clientAddress, item.feedbackIndex),
+          item,
+        ]),
+      );
+      const locatorsByKey = new Map<string, IndexedFeedbackLocator[]>();
+      for (const locator of locators) {
+        const key = feedbackRecordKey(
+          locator.clientAddress,
+          locator.feedbackIndex,
+        );
+        if (!storedByKey.has(key)) {
+          issues.push({ code: "LOCATOR_EXTRA", feedbackKey: key });
+          continue;
+        }
+        const group = locatorsByKey.get(key) ?? [];
+        group.push(locator);
+        locatorsByKey.set(key, group);
+      }
+
+      const verifiable: FeedbackWithLocator[] = [];
+      for (const stored of storedFeedback) {
+        const key = feedbackRecordKey(
+          stored.clientAddress,
+          stored.feedbackIndex,
+        );
+        const candidates = locatorsByKey.get(key) ?? [];
+        if (candidates.length === 0) {
+          issues.push({ code: "LOCATOR_MISSING", feedbackKey: key });
+        } else if (candidates.length > 1) {
+          issues.push({ code: "LOCATOR_DUPLICATE", feedbackKey: key });
+        } else {
+          verifiable.push({ stored, locator: candidates[0]! });
+        }
+      }
+
+      const verified = await mapWithConcurrency(
+        verifiable,
+        4,
+        (item) => this.verifyReceipt(item, blockNumber),
+      );
+      const verifiedByKey = new Map<string, FeedbackRecord>();
+      for (const result of verified) {
+        if (result.issue !== undefined) {
+          issues.push(result.issue);
+          continue;
+        }
+        verifiedByKey.set(
+          feedbackRecordKey(
+            result.feedback.clientAddress,
+            result.feedback.feedbackIndex,
+          ),
+          result.feedback,
+        );
+      }
+      const feedback = storedFeedback.map(
+        (stored) =>
+          verifiedByKey.get(
+            feedbackRecordKey(stored.clientAddress, stored.feedbackIndex),
+          ) ?? stored,
+      );
+
+      return {
+        feedback,
+        status: issues.length === 0 ? "VERIFIED" : "INCOMPLETE",
+        onchainFeedbackCount: storedFeedback.length,
+        locatorFeedbackCount: locators.length,
+        verifiedReceiptCount: verifiedByKey.size,
+        issues,
+      };
+    })();
+
+    return this.feedbackInspectionPromise;
+  }
+
   async listQualityFeedback(
     reference: AgentReference,
   ): Promise<readonly FeedbackRecord[]> {
-    this.assertReference(reference);
-    const blockNumber = await this.snapshotBlock();
-    if (this.config.feedbackFromBlock > blockNumber) {
-      return [];
+    const inspection = await this.inspectFeedback(reference);
+    if (inspection.status !== "VERIFIED") {
+      throw new LiveErc8004Error(
+        "FEEDBACK_HISTORY_INCOMPLETE",
+        "Live feedback history is incomplete and cannot be scored safely",
+      );
     }
-
-    const [feedbackLogs, revocationLogs] = await Promise.all([
-      this.dependencies.client.getLogs({
-        address: this.config.reputationRegistry,
-        event: newFeedbackEvent,
-        args: { agentId: reference.agentId },
-        fromBlock: this.config.feedbackFromBlock,
-        toBlock: blockNumber,
-        strict: true,
-      }),
-      this.dependencies.client.getLogs({
-        address: this.config.reputationRegistry,
-        event: feedbackRevokedEvent,
-        args: { agentId: reference.agentId },
-        fromBlock: this.config.feedbackFromBlock,
-        toBlock: blockNumber,
-        strict: true,
-      }),
-    ]);
-    const revoked = new Set(
-      revocationLogs.map((log) =>
-        feedbackRecordKey(log.args.clientAddress, log.args.feedbackIndex),
-      ),
-    );
-
-    return feedbackLogs.map((log) => {
-      const args = log.args;
-      return normalizeFeedbackRecord({
-        agent: {
-          chainId: reference.chainId,
-          registry: reference.registry,
-          agentId: reference.agentId.toString(),
-        },
-        clientAddress: args.clientAddress,
-        feedbackIndex: args.feedbackIndex.toString(),
-        value: args.value.toString(),
-        valueDecimals: args.valueDecimals,
-        tag1: args.tag1,
-        tag2: args.tag2,
-        ...(args.endpoint === "" ? {} : { endpoint: args.endpoint }),
-        ...(args.feedbackURI === ""
-          ? {}
-          : { feedbackUri: args.feedbackURI }),
-        feedbackHash: args.feedbackHash,
-        isRevoked: revoked.has(
-          feedbackRecordKey(args.clientAddress, args.feedbackIndex),
-        ),
-        observedAtBlock: (log.blockNumber ?? blockNumber).toString(),
-      });
-    });
+    return inspection.feedback;
   }
 }

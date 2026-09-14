@@ -259,11 +259,15 @@ POST /api/payments/:paymentId/reconcile
 - **确定性 Demo 模式**：使用保存的 fixture/mock 数据，保证 Presentation 现场始终可运行。
 - **目标 Live 付款模式**：可选连接 MetaMask，执行 Base Sepolia x402 流程。
 
-当前实现的第一阶段 Live 能力有意限定为只读：它解析一个配置好的 ERC-8004
-身份，并在同一 block snapshot 下从 Registry 事件重建原始评价和撤销记录。
-前端把它作为可选 Inspector 提供；确定性 fixture 模式仍是默认路径，且完全不
-依赖 RPC 可用性。在能够安全读取不可信评价声明并用 EVM receipt 独立验证之前，
-Live B2/B3 的付款依据会 fail closed，不会用模拟证据或静默切换 fixture 代替。
+当前实现的第一阶段 Live 能力有意限定为只读：它解析一个配置好的 ERC-8004 身份，并在
+同一 block snapshot 下通过 `readAllFeedback()` 读取完整的合约内评价和撤销状态。
+8004scan Adapter 只提供不可信的交易哈希作为事件定位信息；每笔 receipt 都由配置的 RPC
+获取，按照指定 Reputation Registry 解码，并与合约状态交叉核对，以恢复只存在于事件中的
+endpoint。定位信息缺失、重复、多余或不匹配都会把历史标记为不完整并抑制 B1 分数。前端
+把它作为可选 Inspector 提供；确定性 fixture 模式仍是默认路径，且完全不依赖 RPC 或
+Indexer 可用性。Registry 事件 receipt 验证不等于付款依据验证。在能够安全读取不可信
+付款声明并用 x402 EVM receipt 独立验证之前，Live B2/B3 会 fail closed，不会用模拟证据
+或静默切换 fixture 代替。
 
 实验由独立命令行程序运行，并把不可变的 JSON/CSV 结果写入 `data/results/`。前端展示平台打包生成后的冻结 JSON 并只读展示；实验不会与 API 共用可变的 Grant、付款或防重放状态。
 
@@ -1126,11 +1130,12 @@ RepuGate/
 
 ### 15.1 未来声誉模型扩展
 
-如第 8 节所定义，当前评分器只评估 `quality` 维度。以下 future work 在这个受控范围
-内扩展证据处理方式。
+如第 8 节所定义，当前评分器只评估 `quality` 维度。以下 future work 一部分在这个受控
+范围内扩展证据处理方式，另一部分说明未来如何在不削弱当前实验语义的前提下支持更多
+评价维度。
 
-以下两个兼容扩展暂缓到 future work。它们改变的是**同一个 quality 维度内部**的证据
-权重，而不是增加新的评价维度：
+以下前两个扩展改变的是**同一个 quality 维度内部**的证据权重；第三项则定义未来支持
+更多评价维度的独立路径：
 
 1. **Reviewer trust weighting。** 为 reviewer 分配透明权重 `w_r`，且权重依据必须独立
    于目标 Agent 当前分数，例如经过验证的交互历史、钱包年龄、资金聚类风险、可信信号
@@ -1145,7 +1150,17 @@ RepuGate/
    攻击者集中制造近期评价的 burst attack。half-life 应在开发集上确定并执行敏感性
    分析，不能观察最终攻击结果后再调整。
 
-若同时使用两项扩展，可以采用有上限的组合权重 `w_r = w_trust * w_time`。此时不能
+3. **显式标签与评价维度 Profile。** 当前 Live Inspector 会统计某个 Agent 实际出现的
+   `tag1`/`tag2`，并解释严格范围过滤的排除原因，但不会改变其语义。未来版本可以进一步
+   对 quality、uptime、latency 或 success rate 等受支持维度应用经过配置且可审计的
+   Profile。每个 Profile 必须明确接受的标签、数值范围、单位、
+   正负方向、归一化规则、endpoint 范围以及界面所显示分数的准确含义；同时保留原始事件
+   字段，并记录归一化结果由哪个 Profile 产生。系统不得把 `mediationSuccess` 等任意标签
+   自动解释成 `quality`，也不得在没有独立模型依据时将语义不同的维度平均成一个声誉分数。
+   不支持的标签仍应作为原始观测展示，并给出明确的排除原因。当前 B0--B3 实验继续固定
+   使用严格的 quality Profile，以保持各基线比较受控且可复现。
+
+若同时使用前两项扩展，可以采用有上限的组合权重 `w_r = w_trust * w_time`。此时不能
 原样沿用当前 `n/(n+2)` confidence；加权证据需要明确使用 `sum(w_r)` 等有效证据质量，
 或有效样本量估计，并重新校准门槛。这些扩展尚未实现，也不属于当前安全性结论。
 

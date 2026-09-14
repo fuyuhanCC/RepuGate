@@ -118,10 +118,14 @@ packages/client ────→ MetaMask / target Provider
 
 The current API provides both adapter paths. Fixture readers remain the default
 for the Presentation. `apps/api/src/adapters/erc8004/live-reader.ts` optionally
-uses viem to read one block-consistent identity and feedback-event snapshot from
-an ERC-8004 deployment. The Live Inspector currently exposes B1 raw reputation;
-payment-proof document ingestion and EVM receipt verification remain separate
-future adapters and are not simulated in Live mode.
+uses viem to read one block-consistent identity and `readAllFeedback()` snapshot
+from an ERC-8004 deployment. `8004scan-locator.ts` obtains transaction hashes
+but is treated as an untrusted locator: `live-reader.ts` fetches every receipt,
+decodes the Registry event, and cross-checks it with contract state before
+recovering event-only endpoint fields. Incomplete verification suppresses the
+B1 score. The Live Inspector currently exposes B1 raw reputation; payment-proof
+document ingestion and x402 receipt verification remain separate future
+adapters and are not simulated in Live mode.
 
 The following rules are mandatory:
 

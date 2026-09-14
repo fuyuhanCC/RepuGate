@@ -1,17 +1,19 @@
 import type {
   Address,
   AgentReference,
-  FeedbackReader,
-  IdentityReader,
 } from "@repugate/core";
 import { evmAddressSchema, positiveIntegerStringSchema } from "@repugate/core";
 import { createPublicClient, http } from "viem";
 import { z } from "zod";
 
 import {
+  type LiveErc8004Inspector,
   LiveErc8004Reader,
   type LiveErc8004ReaderConfig,
 } from "../adapters/erc8004/live-reader";
+
+const DEFAULT_FEEDBACK_INDEXER_URL =
+  "https://api.8004scan.io/api/v1";
 
 const enabledSchema = z.enum(["true", "false"]).default("false");
 const safePositiveIntegerSchema = positiveIntegerStringSchema.refine(
@@ -26,17 +28,17 @@ const liveEnvironmentSchema = z.object({
   ERC8004_REPUTATION_REGISTRY: evmAddressSchema.optional(),
   ERC8004_AGENT_ID: positiveIntegerStringSchema.optional(),
   ERC8004_SERVICE_ENDPOINT: z.string().url().optional(),
-  ERC8004_FEEDBACK_FROM_BLOCK: z
+  ERC8004_FEEDBACK_INDEXER_URL: z
     .string()
-    .regex(/^(0|[1-9][0-9]*)$/)
-    .optional(),
+    .url()
+    .default(DEFAULT_FEEDBACK_INDEXER_URL),
   ERC8004_IPFS_GATEWAY: z.string().url().optional(),
 });
 
 export interface LiveErc8004Runtime {
   config: LiveErc8004ReaderConfig;
   reference: AgentReference;
-  createReader(): IdentityReader & FeedbackReader;
+  createReader(): LiveErc8004Inspector;
 }
 
 function requiredValue(value: string | undefined, key: string): string {
@@ -70,17 +72,12 @@ export function loadLiveErc8004Runtime(
     parsed.ERC8004_SERVICE_ENDPOINT,
     "ERC8004_SERVICE_ENDPOINT",
   );
-  const feedbackFromBlock = requiredValue(
-    parsed.ERC8004_FEEDBACK_FROM_BLOCK,
-    "ERC8004_FEEDBACK_FROM_BLOCK",
-  );
-
   const config: LiveErc8004ReaderConfig = {
     chainId: Number(chainId),
     identityRegistry: identityRegistry as Address,
     reputationRegistry: reputationRegistry as Address,
     serviceEndpoint,
-    feedbackFromBlock: BigInt(feedbackFromBlock),
+    feedbackIndexerUrl: parsed.ERC8004_FEEDBACK_INDEXER_URL,
     ...(parsed.ERC8004_IPFS_GATEWAY === undefined
       ? {}
       : { ipfsGateway: parsed.ERC8004_IPFS_GATEWAY }),
