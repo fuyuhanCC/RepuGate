@@ -272,6 +272,14 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     return reply.status(201).send(result);
   });
 
+  app.get("/api/decisions", async (request) => {
+    const query = request.query as { limit?: string };
+    const parsed = Number.parseInt(query.limit ?? "50", 10);
+    const limit = Number.isSafeInteger(parsed) ? parsed : 50;
+
+    return { decisions: service.listDecisions(limit) };
+  });
+
   app.get("/api/evaluations/:decisionId", async (request) => {
     const { decisionId } = decisionParamsSchema.parse(request.params);
     return service.getDecision(decisionId);

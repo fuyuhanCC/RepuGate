@@ -8,10 +8,12 @@ import type {
 } from "@repugate/client";
 
 import {
+  decisionHistorySchema,
   liveRegistryResponseSchema,
   parseEvaluationResponse,
   parsePaymentResponse,
   serviceCatalogSchema,
+  type DecisionHistoryItem,
   type ServiceCatalogItem,
   type LiveRegistryResponse,
 } from "./dto";
@@ -79,6 +81,11 @@ export async function checkApiHealth(): Promise<boolean> {
 export async function loadLiveRegistry(): Promise<LiveRegistryResponse> {
   const body = await requestJson("/api/live/erc8004");
   return liveRegistryResponseSchema.parse(body);
+}
+
+export async function loadDecisions(limit = 50): Promise<DecisionHistoryItem[]> {
+  const body = await requestJson(`/api/decisions?limit=${encodeURIComponent(limit)}`);
+  return decisionHistorySchema.parse(body).decisions;
 }
 
 export class HttpEvaluationApi implements EvaluationApiPort {

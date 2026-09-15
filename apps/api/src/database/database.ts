@@ -204,6 +204,24 @@ export class ApiDatabase {
         };
   }
 
+  listDecisions(limit: number): StoredDecision[] {
+    const rows = this.database
+      .prepare(
+        "SELECT * FROM decisions ORDER BY created_at DESC, rowid DESC LIMIT ?",
+      )
+      .all(Math.max(1, Math.min(500, Math.trunc(limit)))) as unknown as DecisionRow[];
+
+    return rows.map((row) => ({
+      id: row.id,
+      buyer: row.buyer,
+      idempotencyKey: row.idempotency_key,
+      requestJson: row.request_json,
+      resultJson: row.result_json,
+      offerJson: row.offer_json,
+      createdAt: row.created_at,
+    }));
+  }
+
   insertGrant(grant: EvaluationGrant): void {
     this.database
       .prepare(
