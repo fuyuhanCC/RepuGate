@@ -272,6 +272,31 @@ export type LiveRegistryResponse = z.infer<
   typeof liveRegistryResponseSchema
 >;
 
+export const decisionHistoryItemSchema = z
+  .object({
+    decisionId: z.string(),
+    buyer: z.string(),
+    idempotencyKey: z.string(),
+    createdAt: z.number(),
+    model: z.string().nullable(),
+    decision: z.enum(["ALLOW", "REVIEW", "BLOCK"]).nullable(),
+    rawScoreBps: z.number().nullable(),
+    verifiedScoreBps: z.number().nullable(),
+    confidenceBps: z.number().nullable(),
+    distinctReviewerCount: z.number(),
+    decisionReasons: z.array(z.string()),
+    riskFlags: z.array(z.string()),
+    offerRiskFlags: z.array(z.string()),
+  })
+  .strict();
+
+export const decisionHistorySchema = z
+  .object({ decisions: z.array(decisionHistoryItemSchema) })
+  .strict();
+
+export type DecisionHistoryItem = z.infer<typeof decisionHistoryItemSchema>;
+export type DecisionHistory = z.infer<typeof decisionHistorySchema>;
+
 function toIdentitySnapshot(
   dto: z.infer<typeof identitySnapshotDtoSchema>,
 ): IdentitySnapshot {

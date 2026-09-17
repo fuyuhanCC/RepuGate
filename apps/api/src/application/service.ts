@@ -283,6 +283,41 @@ export class RepuGateService {
     return JSON.parse(decision.resultJson) as unknown;
   }
 
+  listDecisions(limit: number): unknown[] {
+    return this.dependencies.database.listDecisions(limit).map((decision) => {
+      const result = JSON.parse(decision.resultJson) as {
+        evaluation?: {
+          model?: string;
+          decision?: string;
+          rawScoreBps?: number | null;
+          verifiedScoreBps?: number | null;
+          confidenceBps?: number | null;
+          distinctReviewerCount?: number;
+          decisionReasons?: string[];
+          riskFlags?: string[];
+          offerRiskFlags?: string[];
+        };
+      };
+      const evaluation = result.evaluation ?? {};
+
+      return toJsonCompatible({
+        decisionId: decision.id,
+        buyer: decision.buyer,
+        idempotencyKey: decision.idempotencyKey,
+        createdAt: decision.createdAt,
+        model: evaluation.model ?? null,
+        decision: evaluation.decision ?? null,
+        rawScoreBps: evaluation.rawScoreBps ?? null,
+        verifiedScoreBps: evaluation.verifiedScoreBps ?? null,
+        confidenceBps: evaluation.confidenceBps ?? null,
+        distinctReviewerCount: evaluation.distinctReviewerCount ?? 0,
+        decisionReasons: evaluation.decisionReasons ?? [],
+        riskFlags: evaluation.riskFlags ?? [],
+        offerRiskFlags: evaluation.offerRiskFlags ?? [],
+      });
+    });
+  }
+
   consumeGrant(request: ConsumeGrantRequest): unknown {
     return this.dependencies.database.transaction(() => {
       const existing =

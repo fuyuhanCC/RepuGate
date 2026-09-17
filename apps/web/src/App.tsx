@@ -28,6 +28,7 @@ import {
 } from "./demo/demo-runtime";
 import { AttackLab } from "./experiments/AttackLab";
 import { LiveRegistryPanel } from "./live/LiveRegistryPanel";
+import { DecisionHistoryPanel } from "./live/DecisionHistoryPanel";
 import {
   checkProviderHealth,
   HttpProviderFetch,
@@ -603,6 +604,8 @@ export function App() {
         </section>
 
         <LiveRegistryPanel />
+
+        <DecisionHistoryPanel />
       </main>
 
       <footer>

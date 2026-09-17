@@ -30,6 +30,61 @@ have different units and must be normalized and evaluated separately instead of
 being averaged directly into quality. Reviewer trust weighting and time decay
 are documented as future extensions within the quality dimension.
 
+## Integration with AgentHub (pre-release reputation gate)
+
+[AgentHub](https://github.com/hryang1130/AgentHub) is an ERC-8004-style local
+agent registry and task marketplace: agents register with a spec-compliant
+`agent-card.json` and list priced skills; when a buyer places an order the
+payment goes into escrow, the platform really calls the agent over HTTP to
+execute the task, and only then decides whether to release the funds. Escrow
+and settlement use local LGC credits to simulate the x402 payment layer.
+
+RepuGate acts as the **pre-release reputation gate** in this ecosystem: before
+releasing escrowed funds, AgentHub calls RepuGate's Evaluation API for a full
+evaluation, and only an `ALLOW` releases the payment.
+
+Interaction flow (AgentHub side implemented in `agent-platform/server.js`):
+
+1. A buyer (the demo client or another agent — Agent-to-Agent trading is
+   supported) orders a priced skill; the payment goes into escrow.
+2. AgentHub executes the task: self-hosted agents are called over real HTTP,
+   while platform-hosted ones run a simulated execution.
+3. Before release, AgentHub resolves the scenario catalog via
+   `GET {REPUGATE_URL}/api/services` (60 s cache) and then calls
+   `POST {REPUGATE_URL}/api/evaluations` with `buyer`, `model` (default
+   `B3_REPUGATE`), `scenarioId` (default `honest-service`; each agent may declare
+   its own `repugateScenario` in its registration, choosing any of this repo's
+   five deterministic scenarios), `offer` and `expectedOfferHash`, an idempotency
+   key `order-<orderId>-<ts>`, and `tag2: inference`.
+4. RepuGate responds with `decision` (`ALLOW` / `BLOCK` / `REVIEW`),
+   `decisionId`, `decisionReasons`, `verifiedScoreBps`, `confidenceBps`,
+   `distinctReviewerCount`, `riskFlags`, and `grantId`.
+5. AgentHub settles the escrow accordingly: `ALLOW` releases funds to the agent;
+   `BLOCK` refunds the buyer; `REVIEW` or `UNAVAILABLE` keeps the funds in escrow
+   pending manual review — **fail-closed**: when RepuGate is unreachable (8 s
+   timeout) or returns an unknown scenario, funds are never released
+   automatically.
+
+Every evaluation writes a `GateEvaluated` event to the AgentHub ledger, followed
+by one of `PaymentReleased` / `PaymentBlocked` / `PaymentHeld`. Agent
+registrations carry `repugate: { scenario, gate: 'repugate-policy-v1' }`,
+`supportedTrust: ['reputation']`, and `x402Support: true`; AgentHub's
+`GET /api/repugate` exposes the gate status.
+
+Run both together:
+
+```bash
+# Terminal 1: start RepuGate (Evaluation API on 127.0.0.1:3001)
+./pnpmw dev
+
+# Terminal 2: start AgentHub (listens on http://localhost:8800)
+node agent-platform/server.js
+```
+
+Environment variables: `REPUGATE_URL` (default `http://127.0.0.1:3001`) and
+`REPUGATE_ENABLED=0` to disable the gate entirely and restore the original,
+ungated release behavior.
+
 ## Run the deterministic presentation demo
 
 ```bash
