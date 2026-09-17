@@ -26,6 +26,51 @@ RepuGate 是面向 AI Agent 的 x402 声誉门控付款客户端。它评估 ERC
 revenue 具有不同单位，未来应分别标准化和评估，不能直接与 quality 求平均。Reviewer
 trust weighting 和 time decay 已在设计文档中列为 quality 维度内部的 future work。
 
+## 与 AgentHub 的集成（放款前声誉门禁）
+
+[AgentHub](https://github.com/hryang1130/AgentHub) 是一个 ERC-8004 风格的本地
+Agent 注册平台 + 交易市场：Agent 以符合规范的 `agent-card.json` 注册、技能明码标价
+上架；买家下单后货款先进入托管，平台再通过真实 HTTP 调用 Agent 执行任务，最后才
+决定是否放款。托管与结算用本地积分 LGC 模拟 x402 支付层。
+
+RepuGate 在这个生态里扮演**放款前的声誉门禁**：AgentHub 在释放托管资金前调用
+RepuGate 的 Evaluation API 做一次完整评估，只有 `ALLOW` 才放款。
+
+交互流程（AgentHub 侧实现见 `agent-platform/server.js`）：
+
+1. 买家（演示买家或另一个 Agent，支持 Agent-to-Agent 自动交易）对某个技能下单，
+   货款进入托管。
+2. AgentHub 调用 Agent 执行任务：自托管 Agent 走真实 HTTP，平台代管的走模拟执行。
+3. 放款前，AgentHub 先 `GET {REPUGATE_URL}/api/services`（60 秒缓存）解析场景目录，
+   再 `POST {REPUGATE_URL}/api/evaluations`，请求体包含 `buyer`、`model`（默认
+   `B3_REPUGATE`）、`scenarioId`（默认 `honest-service`；每个 Agent 可在自己的注册
+   信息里声明 `repugateScenario`，可选本仓库的五个确定性场景）、`offer` 与
+   `expectedOfferHash`、幂等键 `order-<orderId>-<ts>`，以及 `tag2: inference`。
+4. RepuGate 返回 `decision`（`ALLOW` / `BLOCK` / `REVIEW`）、`decisionId`、
+   `decisionReasons`、`verifiedScoreBps`、`confidenceBps`、`distinctReviewerCount`、
+   `riskFlags` 与 `grantId`。
+5. AgentHub 按决策结算托管资金：`ALLOW` 放款给 Agent；`BLOCK` 退款给买家；
+   `REVIEW` 或 `UNAVAILABLE` 保持托管、等待人工复核——**fail-closed**：RepuGate
+   不可达（8 秒超时）或返回未知场景时，资金不会被自动放出。
+
+每次评估都会在 AgentHub 账本写入 `GateEvaluated`，随后是 `PaymentReleased` /
+`PaymentBlocked` / `PaymentHeld` 之一。Agent 注册信息带有
+`repugate: { scenario, gate: 'repugate-policy-v1' }`、`supportedTrust: ['reputation']`
+与 `x402Support: true` 字段；AgentHub 的 `GET /api/repugate` 可查询门禁状态。
+
+联合运行：
+
+```bash
+# 终端 1：启动 RepuGate（Evaluation API 监听 127.0.0.1:3001）
+./pnpmw dev
+
+# 终端 2：启动 AgentHub（监听 http://localhost:8800）
+node agent-platform/server.js
+```
+
+环境变量：`REPUGATE_URL`（默认 `http://127.0.0.1:3001`）；`REPUGATE_ENABLED=0`
+可整体关闭门禁，恢复无门禁的原始放款行为。
+
 ## 运行确定性 Presentation Demo
 
 ```bash
